@@ -1,3 +1,4 @@
+
 import { AppSettings, UserRole, User, Product, Category } from './types';
 
 export const INITIAL_SETTINGS: AppSettings = {
@@ -14,14 +15,14 @@ export const INITIAL_SETTINGS: AppSettings = {
 };
 
 export const INITIAL_CATEGORIES: Category[] = [
-  { id: 'cat_1', name: 'Electronics' },
-  { id: 'cat_2', name: 'Fashion' },
-  { id: 'cat_3', name: 'Home & Garden' }
+  { id: '11111111-1111-1111-1111-111111111111', name: 'Electronics' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'Fashion' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Home & Garden' }
 ];
 
 // Mock Admin User
 export const DEFAULT_ADMIN: User = {
-  id: 'admin_001',
+  id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', // Real UUID format
   name: 'Super Admin',
   email: 'admin@test.com',
   password: 'admin',
@@ -33,7 +34,7 @@ export const DEFAULT_ADMIN: User = {
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
-    id: 'p1',
+    id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
     name: 'Wireless Headphones',
     category: 'Electronics',
     price: 199.99,
@@ -42,7 +43,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     stock: 50
   },
   {
-    id: 'p2',
+    id: 'f47ac10b-58cc-4372-a567-0e02b2c3d480',
     name: 'Smart Watch',
     category: 'Electronics',
     price: 249.50,
@@ -51,7 +52,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     stock: 30
   },
   {
-    id: 'p3',
+    id: 'f47ac10b-58cc-4372-a567-0e02b2c3d481',
     name: 'Cotton T-Shirt',
     category: 'Fashion',
     price: 29.99,

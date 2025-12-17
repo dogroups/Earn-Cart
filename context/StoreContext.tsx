@@ -44,6 +44,7 @@ interface StoreContextType {
   requestUpiTopUp: (amount: number, txnId: string) => Promise<void>;
   processWalletRequest: (requestId: string, status: RequestStatus) => Promise<void>;
   adminAdjustWallet: (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => Promise<void>;
+  forceCloudSync: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -64,6 +65,22 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState<{ productId: string; quantity: number }[]>([]);
 
+  // Force sync local state to cloud (used for manual migration)
+  const forceCloudSync = async () => {
+    await Promise.all([
+      db.saveUsers(users),
+      db.saveProducts(products),
+      db.saveCategories(categories),
+      db.saveSettings(settings),
+      db.saveOrders(orders),
+      db.saveCommissions(commissions),
+      db.saveEpins(epins),
+      db.saveWalletRequests(walletRequests),
+      db.saveWalletHistory(walletHistory)
+    ]);
+    alert("Successfully pushed all current data to Supabase Cloud.");
+  };
+
   // Initial Data Fetch from "DB"
   useEffect(() => {
     const init = async () => {
@@ -74,17 +91,37 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
           db.getSettings(), db.getCommissions(), db.getEpins(), db.getWalletRequests(), db.getWalletHistory()
         ]);
 
-        // Fallback for empty DB
-        const finalUsers = u.length ? u : [DEFAULT_ADMIN];
-        const finalProducts = p.length ? p : INITIAL_PRODUCTS;
-        const finalCats = c.length ? c : INITIAL_CATEGORIES;
-        const finalSettings = s || INITIAL_SETTINGS;
+        // Auto-seed Supabase if empty
+        let finalUsers = u;
+        if (u.length === 0) {
+          console.log("DB Empty: Seeding default admin...");
+          finalUsers = [DEFAULT_ADMIN];
+          await db.saveUsers(finalUsers);
+        }
+
+        let finalProducts = p;
+        if (p.length === 0) {
+          finalProducts = INITIAL_PRODUCTS;
+          await db.saveProducts(finalProducts);
+        }
+
+        let finalCats = c;
+        if (c.length === 0) {
+          finalCats = INITIAL_CATEGORIES;
+          await db.saveCategories(finalCats);
+        }
+
+        let finalSettings = s;
+        if (!s) {
+          finalSettings = INITIAL_SETTINGS;
+          await db.saveSettings(finalSettings);
+        }
 
         setUsers(finalUsers);
         setProducts(finalProducts);
         setCategories(finalCats);
         setOrders(o);
-        setSettings(finalSettings);
+        setSettings(finalSettings || INITIAL_SETTINGS);
         setCommissions(comm);
         setEpins(ep);
         setWalletRequests(wr);
@@ -97,7 +134,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
           if (user) setCurrentUser(user);
         }
       } catch (err) {
-        console.error("Failed to fetch data from DB:", err);
+        console.error("Critical: Failed to initialize database:", err);
       } finally {
         setIsLoading(false);
       }
@@ -105,7 +142,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     init();
   }, []);
 
-  // Persistence triggers
+  // Continuous persistence triggers
   useEffect(() => { if (!isLoading) db.saveUsers(users); }, [users, isLoading]);
   useEffect(() => { if (!isLoading) db.saveProducts(products); }, [products, isLoading]);
   useEffect(() => { if (!isLoading) db.saveOrders(orders); }, [orders, isLoading]);
@@ -345,7 +382,8 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       login, logout, register, updateUserProfile, deleteUser, updateSettings, 
       addProduct, updateProduct, deleteProduct, addCategory, deleteCategory,
       addToCart, removeFromCart, clearCart, placeOrder, updateOrderStatus,
-      generateEPins, redeemEPin, requestUpiTopUp, processWalletRequest, adminAdjustWallet
+      generateEPins, redeemEPin, requestUpiTopUp, processWalletRequest, adminAdjustWallet,
+      forceCloudSync
     }}>
       {children}
     </StoreContext.Provider>

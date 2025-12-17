@@ -5,7 +5,7 @@ import {
   Users, ShoppingBag, Settings, Network, DollarSign, Package, 
   Trash2, Plus, Edit2, CheckCircle, XCircle, Wand2, LogOut, Menu, X,
   Key, Wallet, ArrowDownCircle, ArrowUpCircle, User as UserIcon,
-  Cloud, HardDrive
+  Cloud, HardDrive, RefreshCcw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateProductDescription } from '../services/geminiService';
@@ -19,15 +19,24 @@ export const AdminPanel = () => {
     categories, addCategory, deleteCategory, orders, updateOrderStatus, users, 
     commissions, currentUser, logout, generateEPins, epins, walletRequests, 
     processWalletRequest, adminAdjustWallet, deleteUser, updateUserProfile,
-    isCloudSyncActive
+    isCloudSyncActive, forceCloudSync
   } = useStore();
   
   const [activeTab, setActiveTab] = useState<'stats' | 'shop' | 'settings' | 'customers' | 'referrals' | 'wallet' | 'profile'>('stats');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleNavClick = (tab: any) => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
+  };
+
+  const handleManualSync = async () => {
+    if(confirm("This will push all current data to Supabase. Continue?")) {
+      setIsSyncing(true);
+      await forceCloudSync();
+      setIsSyncing(false);
+    }
   };
 
   const NavItems = () => (
@@ -76,6 +85,18 @@ export const AdminPanel = () => {
               {isCloudSyncActive ? <Cloud size={12} /> : <HardDrive size={12} />}
               {isCloudSyncActive ? 'Cloud Active' : 'Local Storage'}
             </div>
+
+            {isCloudSyncActive && (
+              <button 
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 ml-2 transition-all"
+                title="Force Cloud Update"
+              >
+                <RefreshCcw size={12} className={isSyncing ? 'animate-spin' : ''} />
+                {isSyncing ? 'Syncing...' : 'Sync Cloud'}
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -472,7 +493,7 @@ const AppSettingsPanel = ({ settings, onUpdate, isCloudSyncActive }: any) => {
             <p className="text-gray-500 text-sm">Fine-tune your platform's core identity and operations.</p>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest ${isCloudSyncActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
-            {isCloudSyncActive ? 'Database: Supabase' : 'Database: Local (Offline)'}
+            {isCloudSyncActive ? 'Database: Supabase (Live)' : 'Database: Local (Offline)'}
           </div>
         </div>
         
@@ -517,13 +538,6 @@ const AppSettingsPanel = ({ settings, onUpdate, isCloudSyncActive }: any) => {
                   </div>
               </div>
           </div>
-
-          {!isCloudSyncActive && (
-            <div className="p-4 bg-orange-50 text-orange-800 rounded-xl border border-orange-200 text-xs">
-              <p className="font-bold mb-1">Note: Offline Mode Active</p>
-              <p>You are currently not connected to Supabase. All settings are being saved to your browser's local storage only.</p>
-            </div>
-          )}
 
           <div className="flex items-center justify-between p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
             <div>
