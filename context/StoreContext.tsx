@@ -91,41 +91,35 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
           db.getSettings(), db.getCommissions(), db.getEpins(), db.getWalletRequests(), db.getWalletHistory()
         ]);
 
-        // Auto-seed Supabase if empty
-        let finalUsers = u;
-        if (u.length === 0) {
+        // Defensive checks for arrays to prevent .map of null
+        let finalUsers = Array.isArray(u) ? u : [];
+        if (finalUsers.length === 0) {
           console.log("DB Empty: Seeding default admin...");
           finalUsers = [DEFAULT_ADMIN];
           await db.saveUsers(finalUsers);
         }
 
-        let finalProducts = p;
-        if (p.length === 0) {
+        let finalProducts = Array.isArray(p) ? p : [];
+        if (finalProducts.length === 0) {
           finalProducts = INITIAL_PRODUCTS;
           await db.saveProducts(finalProducts);
         }
 
-        let finalCats = c;
-        if (c.length === 0) {
+        let finalCats = Array.isArray(c) ? c : [];
+        if (finalCats.length === 0) {
           finalCats = INITIAL_CATEGORIES;
           await db.saveCategories(finalCats);
-        }
-
-        let finalSettings = s;
-        if (!s) {
-          finalSettings = INITIAL_SETTINGS;
-          await db.saveSettings(finalSettings);
         }
 
         setUsers(finalUsers);
         setProducts(finalProducts);
         setCategories(finalCats);
-        setOrders(o);
-        setSettings(finalSettings || INITIAL_SETTINGS);
-        setCommissions(comm);
-        setEpins(ep);
-        setWalletRequests(wr);
-        setWalletHistory(wh);
+        setOrders(Array.isArray(o) ? o : []);
+        setSettings(s || INITIAL_SETTINGS);
+        setCommissions(Array.isArray(comm) ? comm : []);
+        setEpins(Array.isArray(ep) ? ep : []);
+        setWalletRequests(Array.isArray(wr) ? wr : []);
+        setWalletHistory(Array.isArray(wh) ? wh : []);
 
         // Session Restore
         const uid = localStorage.getItem(CURRENT_USER_ID_KEY);
@@ -193,47 +187,48 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   };
 
   const updateUserProfile = async (userId: string, data: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
+    setUsers(prev => (prev || []).map(u => u.id === userId ? { ...u, ...data } : u));
     if (currentUser?.id === userId) setCurrentUser(prev => prev ? ({ ...prev, ...data }) : null);
   };
 
   const deleteUser = async (userId: string) => {
     if (userId === DEFAULT_ADMIN.id) return alert("Cannot delete Super Admin");
-    setUsers(prev => prev.filter(u => u.id !== userId));
+    setUsers(prev => (prev || []).filter(u => u.id !== userId));
   };
 
   const updateSettings = async (newSettings: AppSettings) => setSettings(newSettings);
 
-  const addProduct = async (product: Product) => setProducts(prev => [...prev, product]);
-  const updateProduct = async (product: Product) => setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-  const deleteProduct = async (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
+  const addProduct = async (product: Product) => setProducts(prev => [...(prev || []), product]);
+  const updateProduct = async (product: Product) => setProducts(prev => (prev || []).map(p => p.id === product.id ? product : p));
+  const deleteProduct = async (id: string) => setProducts(prev => (prev || []).filter(p => p.id !== id));
 
   const addCategory = async (name: string) => {
     if(categories.some(c => c.name.toLowerCase() === name.toLowerCase())) return;
     const newCat = { id: crypto.randomUUID(), name };
-    setCategories(prev => [...prev, newCat]);
+    setCategories(prev => [...(prev || []), newCat]);
     db.saveCategories([...categories, newCat]);
   };
 
   const deleteCategory = async (id: string) => {
-     const next = categories.filter(c => c.id !== id);
+     const next = (categories || []).filter(c => c.id !== id);
      setCategories(next);
      db.saveCategories(next);
   };
 
   const addToCart = (productId: string) => {
     setCart(prev => {
-      const existing = prev.find(item => item.productId === productId);
-      if (existing) return prev.map(item => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item);
-      return [...prev, { productId, quantity: 1 }];
+      const items = prev || [];
+      const existing = items.find(item => item.productId === productId);
+      if (existing) return items.map(item => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item);
+      return [...items, { productId, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.productId !== productId));
+  const removeFromCart = (productId: string) => setCart(prev => (prev || []).filter(item => item.productId !== productId));
   const clearCart = () => setCart([]);
 
   const placeOrder = async () => {
-    if (!currentUser || cart.length === 0) return;
+    if (!currentUser || !cart || cart.length === 0) return;
 
     const items = cart.map(item => {
       const p = products.find(prod => prod.id === item.productId);
@@ -262,10 +257,10 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     };
 
     const updatedUser = { ...currentUser, walletBalance: currentUser.walletBalance - totalAmount };
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
+    setUsers(prev => (prev || []).map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
-    setOrders(prev => [newOrder, ...prev]);
-    setWalletHistory(prev => [...prev, {
+    setOrders(prev => [newOrder, ...(prev || [])]);
+    setWalletHistory(prev => [...(prev || []), {
       id: crypto.randomUUID(), userId: updatedUser.id,
       type: TransactionType.PURCHASE, amount: -totalAmount,
       description: `Order #${orderId.slice(0,8)}`, date: new Date().toISOString()
@@ -279,7 +274,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     while (currentReferrerId && currentLevel <= 5) {
       const idx = tempUsers.findIndex(u => u.id === currentReferrerId);
       if (idx === -1) break;
-      const pct = settings.referralLevels.find(l => l.level === currentLevel)?.commissionPercentage || 0;
+      const pct = (settings.referralLevels || []).find(l => l.level === currentLevel)?.commissionPercentage || 0;
       const amt = (totalAmount * pct) / 100;
       
       if (amt > 0) {
@@ -288,7 +283,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
           id: crypto.randomUUID(), orderId, beneficiaryId: tempUsers[idx].id,
           sourceUserId: currentUser.id, level: currentLevel, amount: amt, date: new Date().toISOString()
         });
-        setWalletHistory(prev => [...prev, {
+        setWalletHistory(prev => [...(prev || []), {
           id: crypto.randomUUID(), userId: tempUsers[idx].id,
           type: TransactionType.COMMISSION, amount: amt,
           description: `Level ${currentLevel} Comm. from ${currentUser.name}`,
@@ -299,12 +294,12 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       currentLevel++;
     }
     setUsers(tempUsers);
-    setCommissions(prev => [...prev, ...commLogs]);
+    setCommissions(prev => [...(prev || []), ...commLogs]);
     clearCart();
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    setOrders(prev => (prev || []).map(o => o.id === orderId ? { ...o, status } : o));
   };
 
   const generateEPins = async (amount: number, count: number, validityDays: number) => {
@@ -318,18 +313,18 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
         createdAt: new Date().toISOString(), expiresAt: expiry.toISOString()
       });
     }
-    setEpins(prev => [...prev, ...newPins]);
+    setEpins(prev => [...(prev || []), ...newPins]);
   };
 
   const redeemEPin = async (code: string) => {
     if (!currentUser) return { success: false, message: "Not logged in" };
-    const pin = epins.find(p => p.code === code);
+    const pin = (epins || []).find(p => p.code === code);
     if (!pin || pin.isUsed) return { success: false, message: "Invalid or used pin" };
     
-    setEpins(prev => prev.map(p => p.code === code ? { ...p, isUsed: true, usedBy: currentUser.id } : p));
+    setEpins(prev => (prev || []).map(p => p.code === code ? { ...p, isUsed: true, usedBy: currentUser.id } : p));
     const nextBal = currentUser.walletBalance + pin.amount;
     updateUserProfile(currentUser.id, { walletBalance: nextBal });
-    setWalletHistory(prev => [...prev, {
+    setWalletHistory(prev => [...(prev || []), {
       id: crypto.randomUUID(), userId: currentUser.id,
       type: TransactionType.DEPOSIT_EPIN, amount: pin.amount,
       description: `E-Pin ${code} Redeemed`, date: new Date().toISOString()
@@ -339,7 +334,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const requestUpiTopUp = async (amount: number, txnId: string) => {
     if (!currentUser) return;
-    setWalletRequests(prev => [...prev, {
+    setWalletRequests(prev => [...(prev || []), {
       id: crypto.randomUUID(), userId: currentUser.id, userName: currentUser.name,
       amount, transactionId: txnId, status: RequestStatus.PENDING, method: 'UPI',
       date: new Date().toISOString()
@@ -347,20 +342,20 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   };
 
   const processWalletRequest = async (requestId: string, status: RequestStatus) => {
-    const req = walletRequests.find(r => r.id === requestId);
+    const req = (walletRequests || []).find(r => r.id === requestId);
     if (!req) return;
     if (status === RequestStatus.APPROVED) {
       const u = users.find(x => x.id === req.userId);
       if (u) {
         updateUserProfile(u.id, { walletBalance: u.walletBalance + req.amount });
-        setWalletHistory(prev => [...prev, {
+        setWalletHistory(prev => [...(prev || []), {
           id: crypto.randomUUID(), userId: u.id,
           type: TransactionType.DEPOSIT_UPI, amount: req.amount,
           description: `UPI Approved (Ref: ${req.transactionId})`, date: new Date().toISOString()
         }]);
       }
     }
-    setWalletRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r));
+    setWalletRequests(prev => (prev || []).map(r => r.id === requestId ? { ...r, status } : r));
   };
 
   const adminAdjustWallet = async (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => {
@@ -368,7 +363,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     if (!u) return;
     const amt = type === 'CREDIT' ? amount : -amount;
     updateUserProfile(userId, { walletBalance: u.walletBalance + amt });
-    setWalletHistory(prev => [...prev, {
+    setWalletHistory(prev => [...(prev || []), {
       id: crypto.randomUUID(), userId, type: TransactionType.ADMIN_ADJUSTMENT,
       amount: amt, description, date: new Date().toISOString()
     }]);

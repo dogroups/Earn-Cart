@@ -11,7 +11,13 @@ export const IS_SUPABASE_CONNECTED = true;
 
 const getLocal = <T>(key: string, fallback: T): T => {
   const s = localStorage.getItem(key);
-  return s ? JSON.parse(s) : fallback;
+  if (!s) return fallback;
+  try {
+    const parsed = JSON.parse(s);
+    return (parsed === null || parsed === undefined) ? fallback : parsed;
+  } catch (e) {
+    return fallback;
+  }
 };
 
 const setLocal = (key: string, data: any) => {
@@ -96,7 +102,7 @@ export const db = {
 
   async saveUsers(users: User[]) {
     try {
-      const sanitized = users.map(u => {
+      const sanitized = (users || []).map(u => {
         const mapped = mapToDb(u, 'members');
         if (!mapped.referrer_id || String(mapped.referrer_id).length < 10) {
           mapped.referrer_id = null;
@@ -146,7 +152,7 @@ export const db = {
 
   async saveProducts(products: Product[]) {
     try {
-      const mapped = products.map(p => mapToDb(p, 'products'));
+      const mapped = (products || []).map(p => mapToDb(p, 'products'));
       const { error } = await supabase.from('products').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -168,7 +174,7 @@ export const db = {
 
   async saveCategories(cats: Category[]) {
     try {
-      const mapped = cats.map(c => mapToDb(c, 'categories'));
+      const mapped = (cats || []).map(c => mapToDb(c, 'categories'));
       const { error } = await supabase.from('categories').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -190,7 +196,7 @@ export const db = {
 
   async saveOrders(orders: Order[]) {
     try {
-      const mapped = orders.map(o => mapToDb(o, 'orders'));
+      const mapped = (orders || []).map(o => mapToDb(o, 'orders'));
       const { error } = await supabase.from('orders').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -212,7 +218,7 @@ export const db = {
 
   async saveCommissions(logs: ReferralCommissionLog[]) {
     try {
-      const mapped = logs.map(l => mapToDb(l, 'commissions'));
+      const mapped = (logs || []).map(l => mapToDb(l, 'commissions'));
       const { error } = await supabase.from('commissions').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -234,7 +240,7 @@ export const db = {
 
   async saveEpins(pins: EPin[]) {
     try {
-      const mapped = pins.map(p => mapToDb(p, 'epins'));
+      const mapped = (pins || []).map(p => mapToDb(p, 'epins'));
       const { error } = await supabase.from('epins').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -256,7 +262,7 @@ export const db = {
 
   async saveWalletRequests(reqs: WalletRequest[]) {
     try {
-      const mapped = reqs.map(r => mapToDb(r, 'wallet_requests'));
+      const mapped = (reqs || []).map(r => mapToDb(r, 'wallet_requests'));
       const { error } = await supabase.from('wallet_requests').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
@@ -278,7 +284,7 @@ export const db = {
 
   async saveWalletHistory(hist: WalletTransaction[]) {
     try {
-      const mapped = hist.map(h => mapToDb(h, 'wallet_history'));
+      const mapped = (hist || []).map(h => mapToDb(h, 'wallet_history'));
       const { error } = await supabase.from('wallet_history').upsert(mapped);
       if (error) throw error;
     } catch (e: any) {
