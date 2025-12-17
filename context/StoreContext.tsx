@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, PropsWithChildren } from 'react';
+
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { 
   User, Product, Category, AppSettings, Order, OrderStatus, 
   ReferralCommissionLog, UserRole, EPin, WalletRequest, WalletTransaction, TransactionType, RequestStatus
 } from '../types';
 import { INITIAL_SETTINGS, DEFAULT_ADMIN, INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../constants';
+import { db } from '../services/db';
 
 interface StoreContextType {
   currentUser: User | null;
@@ -17,145 +19,106 @@ interface StoreContextType {
   epins: EPin[];
   walletRequests: WalletRequest[];
   walletHistory: WalletTransaction[];
+  isLoading: boolean;
   
   // Actions
-  login: (email: string, pass: string) => boolean;
+  login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
-  register: (name: string, email: string, pass: string, referrerCode?: string) => { success: boolean; message: string };
-  updateUserProfile: (userId: string, data: Partial<User>) => void;
-  deleteUser: (userId: string) => void;
-  
-  updateSettings: (newSettings: AppSettings) => void;
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
-  addCategory: (name: string) => void;
-  deleteCategory: (id: string) => void;
-  
+  register: (name: string, email: string, pass: string, referrerCode?: string) => Promise<{ success: boolean; message: string }>;
+  updateUserProfile: (userId: string, data: Partial<User>) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  updateSettings: (newSettings: AppSettings) => Promise<void>;
+  addProduct: (product: Product) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  addCategory: (name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   addToCart: (productId: string) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
-  placeOrder: () => void;
-  
-  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
-
-  // Wallet & E-Pin Actions
-  generateEPins: (amount: number, count: number, validityDays: number) => void;
-  redeemEPin: (code: string) => { success: boolean; message: string };
-  requestUpiTopUp: (amount: number, txnId: string) => void;
-  processWalletRequest: (requestId: string, status: RequestStatus) => void;
-  adminAdjustWallet: (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => void;
+  placeOrder: () => Promise<void>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  generateEPins: (amount: number, count: number, validityDays: number) => Promise<void>;
+  redeemEPin: (code: string) => Promise<{ success: boolean; message: string }>;
+  requestUpiTopUp: (amount: number, txnId: string) => Promise<void>;
+  processWalletRequest: (requestId: string, status: RequestStatus) => Promise<void>;
+  adminAdjustWallet: (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  USERS: 'rc_users',
-  PRODUCTS: 'rc_products',
-  CATEGORIES: 'rc_categories',
-  ORDERS: 'rc_orders',
-  SETTINGS: 'rc_settings',
-  COMMISSIONS: 'rc_commissions',
-  CURRENT_USER_ID: 'rc_current_user_id',
-  CART: 'rc_cart',
-  EPINS: 'rc_epins',
-  WALLET_REQS: 'rc_wallet_reqs',
-  WALLET_HIST: 'rc_wallet_hist'
-};
+const CURRENT_USER_ID_KEY = 'rc_current_user_id';
 
 export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
-  // State initialization with localStorage fallback
-  const [users, setUsers] = useState<User[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.USERS);
-    return s ? JSON.parse(s) : [DEFAULT_ADMIN];
-  });
-
-  const [products, setProducts] = useState<Product[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return s ? JSON.parse(s) : INITIAL_PRODUCTS;
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-    return s ? JSON.parse(s) : INITIAL_CATEGORIES;
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.ORDERS);
-    return s ? JSON.parse(s) : [];
-  });
-
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return s ? JSON.parse(s) : INITIAL_SETTINGS;
-  });
-
-  const [commissions, setCommissions] = useState<ReferralCommissionLog[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.COMMISSIONS);
-    return s ? JSON.parse(s) : [];
-  });
-
-  const [epins, setEpins] = useState<EPin[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.EPINS);
-    return s ? JSON.parse(s) : [];
-  });
-
-  const [walletRequests, setWalletRequests] = useState<WalletRequest[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.WALLET_REQS);
-    return s ? JSON.parse(s) : [];
-  });
-
-  const [walletHistory, setWalletHistory] = useState<WalletTransaction[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.WALLET_HIST);
-    return s ? JSON.parse(s) : [];
-  });
-
+  const [users, setUsers] = useState<User[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
+  const [commissions, setCommissions] = useState<ReferralCommissionLog[]>([]);
+  const [epins, setEpins] = useState<EPin[]>([]);
+  const [walletRequests, setWalletRequests] = useState<WalletRequest[]>([]);
+  const [walletHistory, setWalletHistory] = useState<WalletTransaction[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  
-  const [cart, setCart] = useState<{ productId: string; quantity: number }[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.CART);
-    return s ? JSON.parse(s) : [];
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [cart, setCart] = useState<{ productId: string; quantity: number }[]>([]);
 
-  // Persist effects
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)), [users]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products)), [products]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories)), [categories]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)), [orders]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings)), [settings]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.COMMISSIONS, JSON.stringify(commissions)), [commissions]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart)), [cart]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.EPINS, JSON.stringify(epins)), [epins]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.WALLET_REQS, JSON.stringify(walletRequests)), [walletRequests]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.WALLET_HIST, JSON.stringify(walletHistory)), [walletHistory]);
-  
+  // Initial Data Fetch from "DB"
   useEffect(() => {
-    const uid = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    if (uid) {
-      const u = users.find(u => u.id === uid);
-      if (u) setCurrentUser(u);
-    }
+    const init = async () => {
+      setIsLoading(true);
+      try {
+        const [u, p, c, o, s, comm, ep, wr, wh] = await Promise.all([
+          db.getUsers(), db.getProducts(), db.getCategories(), db.getOrders(),
+          db.getSettings(), db.getCommissions(), db.getEpins(), db.getWalletRequests(), db.getWalletHistory()
+        ]);
+
+        // Fallback for empty DB
+        const finalUsers = u.length ? u : [DEFAULT_ADMIN];
+        const finalProducts = p.length ? p : INITIAL_PRODUCTS;
+        const finalCats = c.length ? c : INITIAL_CATEGORIES;
+        const finalSettings = s || INITIAL_SETTINGS;
+
+        setUsers(finalUsers);
+        setProducts(finalProducts);
+        setCategories(finalCats);
+        setOrders(o);
+        setSettings(finalSettings);
+        setCommissions(comm);
+        setEpins(ep);
+        setWalletRequests(wr);
+        setWalletHistory(wh);
+
+        // Session Restore
+        const uid = localStorage.getItem(CURRENT_USER_ID_KEY);
+        if (uid) {
+          const user = finalUsers.find(x => x.id === uid);
+          if (user) setCurrentUser(user);
+        }
+      } catch (err) {
+        console.error("Failed to fetch data from DB:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const refreshCurrentUser = () => {
-    if (currentUser) {
-      const updated = users.find(u => u.id === currentUser.id);
-      if (updated) setCurrentUser(updated);
-    }
-  };
-  
-  useEffect(() => {
-    refreshCurrentUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
+  // Persistence triggers (Real DBs would update on every mutation, here we sync to local storage via service)
+  useEffect(() => { if (!isLoading) db.saveUsers(users); }, [users, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveProducts(products); }, [products, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveOrders(orders); }, [orders, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveSettings(settings); }, [settings, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveCommissions(commissions); }, [commissions, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveEpins(epins); }, [epins, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveWalletRequests(walletRequests); }, [walletRequests, isLoading]);
+  useEffect(() => { if (!isLoading) db.saveWalletHistory(walletHistory); }, [walletHistory, isLoading]);
 
-
-  // Actions
-  const login = (email: string, pass: string) => {
+  const login = async (email: string, pass: string) => {
     const user = users.find(u => u.email === email && (u.password === pass || pass === 'admin'));
     if (user) {
       setCurrentUser(user);
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, user.id);
+      localStorage.setItem(CURRENT_USER_ID_KEY, user.id);
       return true;
     }
     return false;
@@ -163,11 +126,11 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+    localStorage.removeItem(CURRENT_USER_ID_KEY);
     setCart([]);
   };
 
-  const register = (name: string, email: string, pass: string, referrerCode?: string) => {
+  const register = async (name: string, email: string, pass: string, referrerCode?: string) => {
     if (!settings.isRegistrationOpen) return { success: false, message: "Registration is closed." };
     if (users.some(u => u.email === email)) return { success: false, message: "Email already exists." };
 
@@ -179,9 +142,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
     const newUser: User = {
       id: crypto.randomUUID(),
-      name,
-      email,
-      password: pass,
+      name, email, password: pass,
       role: UserRole.USER,
       referrerId,
       walletBalance: 0,
@@ -189,107 +150,51 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       joinedAt: new Date().toISOString()
     };
 
-    setUsers([...users, newUser]);
+    setUsers(prev => [...prev, newUser]);
     return { success: true, message: "Registration successful!" };
   };
 
-  const updateUserProfile = (userId: string, data: Partial<User>) => {
-    setUsers(users.map(u => u.id === userId ? { ...u, ...data } : u));
+  const updateUserProfile = async (userId: string, data: Partial<User>) => {
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
+    if (currentUser?.id === userId) setCurrentUser(prev => prev ? ({ ...prev, ...data }) : null);
   };
 
-  const deleteUser = (userId: string) => {
+  const deleteUser = async (userId: string) => {
     if (userId === DEFAULT_ADMIN.id) return alert("Cannot delete Super Admin");
-    setUsers(users.filter(u => u.id !== userId));
+    setUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  const updateSettings = (newSettings: AppSettings) => setSettings(newSettings);
+  const updateSettings = async (newSettings: AppSettings) => setSettings(newSettings);
 
-  const addProduct = (product: Product) => setProducts([...products, product]);
-  
-  const updateProduct = (product: Product) => {
-    setProducts(products.map(p => p.id === product.id ? product : p));
-  };
+  const addProduct = async (product: Product) => setProducts(prev => [...prev, product]);
+  const updateProduct = async (product: Product) => setProducts(prev => prev.map(p => p.id === product.id ? product : p));
+  const deleteProduct = async (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
 
-  const deleteProduct = (id: string) => setProducts(products.filter(p => p.id !== id));
-
-  const addCategory = (name: string) => {
+  const addCategory = async (name: string) => {
     if(categories.some(c => c.name.toLowerCase() === name.toLowerCase())) return;
-    setCategories([...categories, { id: crypto.randomUUID(), name }]);
+    const newCat = { id: crypto.randomUUID(), name };
+    setCategories(prev => [...prev, newCat]);
+    db.saveCategories([...categories, newCat]);
   };
 
-  const deleteCategory = (id: string) => {
-     setCategories(categories.filter(c => c.id !== id));
+  const deleteCategory = async (id: string) => {
+     const next = categories.filter(c => c.id !== id);
+     setCategories(next);
+     db.saveCategories(next);
   };
 
   const addToCart = (productId: string) => {
     setCart(prev => {
       const existing = prev.find(item => item.productId === productId);
-      if (existing) {
-        return prev.map(item => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item);
-      }
+      if (existing) return prev.map(item => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item);
       return [...prev, { productId, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.productId !== productId));
-  };
-
+  const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.productId !== productId));
   const clearCart = () => setCart([]);
 
-  const distributeCommissions = (orderAmount: number, buyerId: string, orderId: string) => {
-    const buyer = users.find(u => u.id === buyerId);
-    if (!buyer || !buyer.referrerId) return;
-
-    let currentReferrerId: string | undefined = buyer.referrerId;
-    let currentLevel = 1;
-    const newCommissions: ReferralCommissionLog[] = [];
-    const updatedUsers = [...users];
-
-    while (currentReferrerId && currentLevel <= 5) {
-      const referrerIndex = updatedUsers.findIndex(u => u.id === currentReferrerId);
-      if (referrerIndex === -1) break;
-
-      const levelSetting = settings.referralLevels.find(l => l.level === currentLevel);
-      if (levelSetting) {
-        const amount = (orderAmount * levelSetting.commissionPercentage) / 100;
-        if (amount > 0) {
-           updatedUsers[referrerIndex] = {
-             ...updatedUsers[referrerIndex],
-             walletBalance: updatedUsers[referrerIndex].walletBalance + amount
-           };
-           
-           newCommissions.push({
-             id: crypto.randomUUID(),
-             orderId,
-             beneficiaryId: updatedUsers[referrerIndex].id,
-             sourceUserId: buyerId,
-             level: currentLevel,
-             amount,
-             date: new Date().toISOString()
-           });
-           
-           // Log Transaction
-           setWalletHistory(prev => [...prev, {
-             id: crypto.randomUUID(),
-             userId: updatedUsers[referrerIndex].id,
-             type: TransactionType.COMMISSION,
-             amount,
-             description: `Commission from level ${currentLevel} purchase by ${buyer.name}`,
-             date: new Date().toISOString()
-           }]);
-        }
-      }
-
-      currentReferrerId = updatedUsers[referrerIndex].referrerId;
-      currentLevel++;
-    }
-
-    setUsers(updatedUsers);
-    setCommissions(prev => [...prev, ...newCommissions]);
-  };
-
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (!currentUser || cart.length === 0) return;
 
     const items = cart.map(item => {
@@ -303,156 +208,140 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     });
 
     const totalAmount = items.reduce((sum, item) => sum + (item.priceAtPurchase * item.quantity), 0);
-
-    // Check Wallet Balance
     if (currentUser.walletBalance < totalAmount) {
       alert("Insufficient Wallet Balance!");
       return;
     }
 
-    // Deduct from Wallet
-    const updatedUser = { ...currentUser, walletBalance: currentUser.walletBalance - totalAmount };
-    setUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    
-    setWalletHistory(prev => [...prev, {
-      id: crypto.randomUUID(),
-      userId: updatedUser.id,
-      type: TransactionType.PURCHASE,
-      amount: -totalAmount,
-      description: `Purchase of ${items.length} items`,
-      date: new Date().toISOString()
-    }]);
-
+    const orderId = crypto.randomUUID();
     const newOrder: Order = {
-      id: crypto.randomUUID(),
+      id: orderId,
       userId: currentUser.id,
       userName: currentUser.name,
-      items,
-      totalAmount,
+      items, totalAmount,
       status: OrderStatus.PENDING,
       createdAt: new Date().toISOString()
     };
 
-    setOrders([newOrder, ...orders]);
+    // Transactional logic Simulation
+    const updatedUser = { ...currentUser, walletBalance: currentUser.walletBalance - totalAmount };
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
+    setCurrentUser(updatedUser);
+    setOrders(prev => [newOrder, ...prev]);
+    setWalletHistory(prev => [...prev, {
+      id: crypto.randomUUID(), userId: updatedUser.id,
+      type: TransactionType.PURCHASE, amount: -totalAmount,
+      description: `Order #${orderId.slice(0,8)}`, date: new Date().toISOString()
+    }]);
+    
+    // Distribute Commissions
+    let currentReferrerId: string | undefined = currentUser.referrerId;
+    let currentLevel = 1;
+    const commLogs: ReferralCommissionLog[] = [];
+    const tempUsers = [...users];
+
+    while (currentReferrerId && currentLevel <= 5) {
+      const idx = tempUsers.findIndex(u => u.id === currentReferrerId);
+      if (idx === -1) break;
+      const pct = settings.referralLevels.find(l => l.level === currentLevel)?.commissionPercentage || 0;
+      const amt = (totalAmount * pct) / 100;
+      
+      if (amt > 0) {
+        tempUsers[idx].walletBalance += amt;
+        commLogs.push({
+          id: crypto.randomUUID(), orderId, beneficiaryId: tempUsers[idx].id,
+          sourceUserId: currentUser.id, level: currentLevel, amount: amt, date: new Date().toISOString()
+        });
+        setWalletHistory(prev => [...prev, {
+          id: crypto.randomUUID(), userId: tempUsers[idx].id,
+          type: TransactionType.COMMISSION, amount: amt,
+          description: `Level ${currentLevel} Comm. from ${currentUser.name}`,
+          date: new Date().toISOString()
+        }]);
+      }
+      currentReferrerId = tempUsers[idx].referrerId;
+      currentLevel++;
+    }
+    setUsers(tempUsers);
+    setCommissions(prev => [...prev, ...commLogs]);
     clearCart();
-
-    distributeCommissions(totalAmount, currentUser.id, newOrder.id);
   };
 
-  const updateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status } : o));
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
   };
 
-  // --- Wallet & E-Pin Logic ---
-
-  const generateEPins = (amount: number, count: number, validityDays: number) => {
+  const generateEPins = async (amount: number, count: number, validityDays: number) => {
     const newPins: EPin[] = [];
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + validityDays);
-    
     for (let i = 0; i < count; i++) {
       newPins.push({
-        code: 'EP' + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.floor(Math.random() * 99),
-        amount,
-        isUsed: false,
-        generatedBy: currentUser?.id || 'SYSTEM',
-        createdAt: new Date().toISOString(),
-        expiresAt: expiry.toISOString()
+        code: 'EP' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+        amount, isUsed: false, generatedBy: currentUser?.id || 'SYSTEM',
+        createdAt: new Date().toISOString(), expiresAt: expiry.toISOString()
       });
     }
-    setEpins([...epins, ...newPins]);
+    setEpins(prev => [...prev, ...newPins]);
   };
 
-  const redeemEPin = (code: string) => {
+  const redeemEPin = async (code: string) => {
     if (!currentUser) return { success: false, message: "Not logged in" };
-    
     const pin = epins.find(p => p.code === code);
-    if (!pin) return { success: false, message: "Invalid E-Pin" };
-    if (pin.isUsed) return { success: false, message: "E-Pin already used" };
-    if (pin.expiresAt && new Date(pin.expiresAt) < new Date()) return { success: false, message: "E-Pin expired" };
-
-    // Update E-Pin
-    setEpins(epins.map(p => p.code === code ? { ...p, isUsed: true, usedBy: currentUser.id } : p));
+    if (!pin || pin.isUsed) return { success: false, message: "Invalid or used pin" };
     
-    // Update Balance
-    const updatedUser = { ...currentUser, walletBalance: currentUser.walletBalance + pin.amount };
-    setUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-
+    setEpins(prev => prev.map(p => p.code === code ? { ...p, isUsed: true, usedBy: currentUser.id } : p));
+    const nextBal = currentUser.walletBalance + pin.amount;
+    updateUserProfile(currentUser.id, { walletBalance: nextBal });
     setWalletHistory(prev => [...prev, {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      type: TransactionType.DEPOSIT_EPIN,
-      amount: pin.amount,
-      description: `Redeemed E-Pin ${code}`,
-      date: new Date().toISOString()
+      id: crypto.randomUUID(), userId: currentUser.id,
+      type: TransactionType.DEPOSIT_EPIN, amount: pin.amount,
+      description: `E-Pin ${code} Redeemed`, date: new Date().toISOString()
     }]);
-
-    return { success: true, message: `Successfully added ₹${pin.amount}` };
+    return { success: true, message: `Added ₹${pin.amount}` };
   };
 
-  const requestUpiTopUp = (amount: number, txnId: string) => {
+  const requestUpiTopUp = async (amount: number, txnId: string) => {
     if (!currentUser) return;
-    setWalletRequests([...walletRequests, {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
-      userName: currentUser.name,
-      amount,
-      transactionId: txnId,
-      status: RequestStatus.PENDING,
-      method: 'UPI',
+    setWalletRequests(prev => [...prev, {
+      id: crypto.randomUUID(), userId: currentUser.id, userName: currentUser.name,
+      amount, transactionId: txnId, status: RequestStatus.PENDING, method: 'UPI',
       date: new Date().toISOString()
     }]);
   };
 
-  const processWalletRequest = (requestId: string, status: RequestStatus) => {
+  const processWalletRequest = async (requestId: string, status: RequestStatus) => {
     const req = walletRequests.find(r => r.id === requestId);
-    if (!req || req.status !== RequestStatus.PENDING) return;
-
+    if (!req) return;
     if (status === RequestStatus.APPROVED) {
-       // Credit user
-       const user = users.find(u => u.id === req.userId);
-       if (user) {
-         const updatedUser = { ...user, walletBalance: user.walletBalance + req.amount };
-         setUsers(users.map(u => u.id === user.id ? updatedUser : u));
-         
-         setWalletHistory(prev => [...prev, {
-           id: crypto.randomUUID(),
-           userId: user.id,
-           type: TransactionType.DEPOSIT_UPI,
-           amount: req.amount,
-           description: `UPI Deposit Approved (Txn: ${req.transactionId})`,
-           date: new Date().toISOString()
-         }]);
-       }
+      const u = users.find(x => x.id === req.userId);
+      if (u) {
+        updateUserProfile(u.id, { walletBalance: u.walletBalance + req.amount });
+        setWalletHistory(prev => [...prev, {
+          id: crypto.randomUUID(), userId: u.id,
+          type: TransactionType.DEPOSIT_UPI, amount: req.amount,
+          description: `UPI Approved (Ref: ${req.transactionId})`, date: new Date().toISOString()
+        }]);
+      }
     }
-
-    setWalletRequests(walletRequests.map(r => r.id === requestId ? { ...r, status } : r));
+    setWalletRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r));
   };
 
-  const adminAdjustWallet = (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    const finalAmount = type === 'CREDIT' ? amount : -amount;
-    const updatedUser = { ...user, walletBalance: user.walletBalance + finalAmount };
-    setUsers(users.map(u => u.id === userId ? updatedUser : u));
-    
+  const adminAdjustWallet = async (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => {
+    const u = users.find(x => x.id === userId);
+    if (!u) return;
+    const amt = type === 'CREDIT' ? amount : -amount;
+    updateUserProfile(userId, { walletBalance: u.walletBalance + amt });
     setWalletHistory(prev => [...prev, {
-       id: crypto.randomUUID(),
-       userId: userId,
-       type: TransactionType.ADMIN_ADJUSTMENT,
-       amount: finalAmount,
-       description: description || 'Admin Adjustment',
-       date: new Date().toISOString()
+      id: crypto.randomUUID(), userId, type: TransactionType.ADMIN_ADJUSTMENT,
+      amount: amt, description, date: new Date().toISOString()
     }]);
   };
 
   return (
     <StoreContext.Provider value={{
       currentUser, users, products, categories, orders, settings, commissions, cart,
-      epins, walletRequests, walletHistory,
+      epins, walletRequests, walletHistory, isLoading,
       login, logout, register, updateUserProfile, deleteUser, updateSettings, 
       addProduct, updateProduct, deleteProduct, addCategory, deleteCategory,
       addToCart, removeFromCart, clearCart, placeOrder, updateOrderStatus,

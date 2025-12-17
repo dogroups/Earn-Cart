@@ -10,7 +10,8 @@ export const generateProductDescription = async (productName: string, category: 
 
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const model = 'gemini-2.5-flash';
+    // Updated to latest recommended model for basic text tasks
+    const model = 'gemini-3-flash-preview';
 
     const prompt = `Write a compelling and concise product description (max 2 sentences) for a product named "${productName}" in the category "${category}". Highlight its key benefits.`;
 

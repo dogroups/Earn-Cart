@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { ShoppingBag, CheckCircle } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Loader2 } from 'lucide-react';
 
 export const Auth = () => {
   const { login, register, settings } = useStore();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -15,24 +16,30 @@ export const Auth = () => {
     referralCode: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+    setIsSubmitting(true);
 
-    if (isRegistering) {
-      const res = register(formData.name, formData.email, formData.password, formData.referralCode);
-      if (res.success) {
-        setSuccessMsg(res.message);
-        setIsRegistering(false); // Switch to login view
-        // Reset password for security/logic flow
-        setFormData(prev => ({ ...prev, password: '' }));
+    try {
+      if (isRegistering) {
+        const res = await register(formData.name, formData.email, formData.password, formData.referralCode);
+        if (res.success) {
+          setSuccessMsg(res.message);
+          setIsRegistering(false);
+          setFormData(prev => ({ ...prev, password: '' }));
+        } else {
+          setError(res.message);
+        }
       } else {
-        setError(res.message);
+        const success = await login(formData.email, formData.password);
+        if (!success) setError("Invalid credentials. Please check your email and password.");
       }
-    } else {
-      const success = login(formData.email, formData.password);
-      if (!success) setError("Invalid credentials. Try admin@test.com / admin");
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -106,7 +113,12 @@ export const Auth = () => {
             </div>
           )}
 
-          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition">
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+          >
+            {isSubmitting && <Loader2 className="animate-spin" size={20} />}
             {isRegistering ? 'Sign Up' : 'Sign In'}
           </button>
         </form>
