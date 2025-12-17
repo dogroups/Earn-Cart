@@ -4,14 +4,14 @@ import { useStore } from '../context/StoreContext';
 import { 
   ShoppingCart, CreditCard, Gift, Network, Package, LogOut,
   User as UserIcon, Plus, Minus, X, Menu, Key, Building2, MapPin, BadgeIndianRupee,
-  Wallet
+  Wallet, Cloud, HardDrive
 } from 'lucide-react';
 import ReferralTree from '../components/ReferralTree';
 import { ProfileView } from '../components/ProfileView';
 import { TransactionType } from '../types';
 
 export const UserPanel = () => {
-  const { logout, settings, currentUser } = useStore();
+  const { logout, settings, currentUser, isCloudSyncActive } = useStore();
   const [activeTab, setActiveTab] = useState<'shop' | 'cart' | 'referrals' | 'orders' | 'profile' | 'wallet'>('shop');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -28,6 +28,12 @@ export const UserPanel = () => {
           <div className="flex items-center gap-3">
             <img src={settings.logoUrl} alt="Logo" className="h-8 w-8 object-contain" />
             <h1 className="text-xl font-bold text-gray-800">{settings.appName}</h1>
+            
+            {/* Connection Badge */}
+            <div className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${isCloudSyncActive ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
+              {isCloudSyncActive ? <Cloud size={10} /> : <HardDrive size={10} />}
+              {isCloudSyncActive ? 'Cloud Sync' : 'Local Mode'}
+            </div>
           </div>
           
           {/* Desktop Nav */}
@@ -353,7 +359,6 @@ const WalletView = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {/* Fixed syntax error: removed extra angle bracket before <tr> */}
                             {myHistory.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-gray-500">No transactions yet.</td></tr>}
                         </tbody>
                     </table>
@@ -400,7 +405,6 @@ const ReferralDashboard = () => {
 
       <div className="bg-white rounded-xl shadow p-6">
         <h3 className="font-bold text-gray-800 mb-4">My Network Tree</h3>
-        {/* Pass currentUser ID as root to see their downline */}
         <ReferralTree users={users} rootUserId={currentUser?.id || ''} />
       </div>
     </div>

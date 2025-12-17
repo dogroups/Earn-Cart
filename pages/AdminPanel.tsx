@@ -4,7 +4,8 @@ import { useStore } from '../context/StoreContext';
 import { 
   Users, ShoppingBag, Settings, Network, DollarSign, Package, 
   Trash2, Plus, Edit2, CheckCircle, XCircle, Wand2, LogOut, Menu, X,
-  Key, Wallet, ArrowDownCircle, ArrowUpCircle, User as UserIcon
+  Key, Wallet, ArrowDownCircle, ArrowUpCircle, User as UserIcon,
+  Cloud, HardDrive
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateProductDescription } from '../services/geminiService';
@@ -17,7 +18,8 @@ export const AdminPanel = () => {
     settings, updateSettings, products, addProduct, updateProduct, deleteProduct,
     categories, addCategory, deleteCategory, orders, updateOrderStatus, users, 
     commissions, currentUser, logout, generateEPins, epins, walletRequests, 
-    processWalletRequest, adminAdjustWallet, deleteUser, updateUserProfile 
+    processWalletRequest, adminAdjustWallet, deleteUser, updateUserProfile,
+    isCloudSyncActive
   } = useStore();
   
   const [activeTab, setActiveTab] = useState<'stats' | 'shop' | 'settings' | 'customers' | 'referrals' | 'wallet' | 'profile'>('stats');
@@ -68,6 +70,12 @@ export const AdminPanel = () => {
             <h1 className="text-lg font-bold text-gray-800 capitalize hidden md:block">
               {activeTab === 'stats' ? 'Dashboard Overview' : activeTab.replace(/([A-Z])/g, ' $1')}
             </h1>
+            
+            {/* Database Status Indicator */}
+            <div className={`ml-4 hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isCloudSyncActive ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+              {isCloudSyncActive ? <Cloud size={12} /> : <HardDrive size={12} />}
+              {isCloudSyncActive ? 'Cloud Active' : 'Local Storage'}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -115,7 +123,7 @@ export const AdminPanel = () => {
                  onUpdateStatus={updateOrderStatus} 
                />
             )}
-            {activeTab === 'settings' && <AppSettingsPanel settings={settings} onUpdate={updateSettings} />}
+            {activeTab === 'settings' && <AppSettingsPanel settings={settings} onUpdate={updateSettings} isCloudSyncActive={isCloudSyncActive} />}
             {activeTab === 'customers' && (
                <CustomerList 
                  users={users} 
@@ -425,7 +433,7 @@ const ProductForm = ({ product, categories, onSave, onCancel }: any) => {
   );
 };
 
-const AppSettingsPanel = ({ settings, onUpdate }: any) => {
+const AppSettingsPanel = ({ settings, onUpdate, isCloudSyncActive }: any) => {
   const [form, setForm] = useState(settings);
   
   const handleSave = () => {
@@ -458,9 +466,14 @@ const AppSettingsPanel = ({ settings, onUpdate }: any) => {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="bg-white p-8 rounded-2xl shadow-sm border space-y-8">
-        <div>
-          <h2 className="text-2xl font-black text-gray-900 mb-1">Global Configuration</h2>
-          <p className="text-gray-500 text-sm">Fine-tune your platform's core identity and operations.</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900 mb-1">Global Configuration</h2>
+            <p className="text-gray-500 text-sm">Fine-tune your platform's core identity and operations.</p>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest ${isCloudSyncActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+            {isCloudSyncActive ? 'Database: Supabase' : 'Database: Local (Offline)'}
+          </div>
         </div>
         
         <div className="space-y-6">
@@ -504,6 +517,13 @@ const AppSettingsPanel = ({ settings, onUpdate }: any) => {
                   </div>
               </div>
           </div>
+
+          {!isCloudSyncActive && (
+            <div className="p-4 bg-orange-50 text-orange-800 rounded-xl border border-orange-200 text-xs">
+              <p className="font-bold mb-1">Note: Offline Mode Active</p>
+              <p>You are currently not connected to Supabase. All settings are being saved to your browser's local storage only.</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
             <div>

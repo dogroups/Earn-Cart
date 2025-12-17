@@ -5,7 +5,7 @@ import {
   ReferralCommissionLog, UserRole, EPin, WalletRequest, WalletTransaction, TransactionType, RequestStatus
 } from '../types';
 import { INITIAL_SETTINGS, DEFAULT_ADMIN, INITIAL_PRODUCTS, INITIAL_CATEGORIES } from '../constants';
-import { db } from '../services/db';
+import { db, IS_SUPABASE_CONNECTED } from '../services/db';
 
 interface StoreContextType {
   currentUser: User | null;
@@ -20,6 +20,7 @@ interface StoreContextType {
   walletRequests: WalletRequest[];
   walletHistory: WalletTransaction[];
   isLoading: boolean;
+  isCloudSyncActive: boolean;
   
   // Actions
   login: (email: string, pass: string) => Promise<boolean>;
@@ -104,7 +105,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     init();
   }, []);
 
-  // Persistence triggers (Real DBs would update on every mutation, here we sync to local storage via service)
+  // Persistence triggers
   useEffect(() => { if (!isLoading) db.saveUsers(users); }, [users, isLoading]);
   useEffect(() => { if (!isLoading) db.saveProducts(products); }, [products, isLoading]);
   useEffect(() => { if (!isLoading) db.saveOrders(orders); }, [orders, isLoading]);
@@ -223,7 +224,6 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       createdAt: new Date().toISOString()
     };
 
-    // Transactional logic Simulation
     const updatedUser = { ...currentUser, walletBalance: currentUser.walletBalance - totalAmount };
     setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     setCurrentUser(updatedUser);
@@ -234,7 +234,6 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       description: `Order #${orderId.slice(0,8)}`, date: new Date().toISOString()
     }]);
     
-    // Distribute Commissions
     let currentReferrerId: string | undefined = currentUser.referrerId;
     let currentLevel = 1;
     const commLogs: ReferralCommissionLog[] = [];
@@ -342,6 +341,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     <StoreContext.Provider value={{
       currentUser, users, products, categories, orders, settings, commissions, cart,
       epins, walletRequests, walletHistory, isLoading,
+      isCloudSyncActive: IS_SUPABASE_CONNECTED,
       login, logout, register, updateUserProfile, deleteUser, updateSettings, 
       addProduct, updateProduct, deleteProduct, addCategory, deleteCategory,
       addToCart, removeFromCart, clearCart, placeOrder, updateOrderStatus,

@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { User, Product, Category, Order, AppSettings, ReferralCommissionLog, EPin, WalletRequest, WalletTransaction } from '../types';
 
@@ -5,14 +6,21 @@ import { User, Product, Category, Order, AppSettings, ReferralCommissionLog, EPi
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-// Initialize Supabase only if credentials exist to avoid crash
+// Initialize Supabase only if credentials exist
 export const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
-// --- Mock / LocalStorage Fallback Logic ---
-// This ensures the app remains functional even if DB isn't connected yet.
+// Export status for the UI to show connection state
+export const IS_SUPABASE_CONNECTED = !!supabase;
 
+if (IS_SUPABASE_CONNECTED) {
+  console.log("🚀 Supabase Connection: Active (Cloud Sync)");
+} else {
+  console.warn("⚠️ Supabase Connection: Missing Keys (Falling back to LocalStorage)");
+}
+
+// --- Mock / LocalStorage Fallback Logic ---
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getLocal = <T>(key: string, fallback: T): T => {
@@ -35,8 +43,6 @@ const LOCAL_KEYS = {
   WALLET_REQS: 'rc_wallet_reqs',
   WALLET_HIST: 'rc_wallet_hist'
 };
-
-// --- Unified Database Interface ---
 
 export const db = {
   async getUsers(): Promise<User[]> {
