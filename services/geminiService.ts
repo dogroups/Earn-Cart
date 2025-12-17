@@ -1,15 +1,12 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = process.env.API_KEY || '';
+// Guideline: Assume process.env.API_KEY is pre-configured and valid.
+// Guideline: Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
 
 export const generateProductDescription = async (productName: string, category: string): Promise<string> => {
-  if (!API_KEY) {
-    console.warn("Gemini API Key is missing.");
-    return "AI generation unavailable: Missing API Key.";
-  }
-
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     // Updated to latest recommended model for basic text tasks
     const model = 'gemini-3-flash-preview';
 
@@ -20,6 +17,7 @@ export const generateProductDescription = async (productName: string, category: 
       contents: prompt,
     });
 
+    // Directly accessing .text property (not a method) as per guidelines.
     return response.text || "No description generated.";
   } catch (error) {
     console.error("Gemini API Error:", error);

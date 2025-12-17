@@ -1,13 +1,15 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   Users, ShoppingBag, Settings, Network, DollarSign, Package, 
   Trash2, Plus, Edit2, CheckCircle, XCircle, Wand2, LogOut, Menu, X,
-  Key, Wallet, ArrowDownCircle, ArrowUpCircle, AlertCircle, Upload, QrCode
+  Key, Wallet, ArrowDownCircle, ArrowUpCircle, User as UserIcon
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateProductDescription } from '../services/geminiService';
 import ReferralTree from '../components/ReferralTree';
+import { ProfileView } from '../components/ProfileView';
 import { Product, User, RequestStatus } from '../types';
 
 export const AdminPanel = () => {
@@ -18,7 +20,7 @@ export const AdminPanel = () => {
     processWalletRequest, adminAdjustWallet, deleteUser, updateUserProfile 
   } = useStore();
   
-  const [activeTab, setActiveTab] = useState<'stats' | 'shop' | 'settings' | 'customers' | 'referrals' | 'wallet'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'shop' | 'settings' | 'customers' | 'referrals' | 'wallet' | 'profile'>('stats');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleNavClick = (tab: any) => {
@@ -34,90 +36,111 @@ export const AdminPanel = () => {
       <NavButton active={activeTab === 'referrals'} onClick={() => handleNavClick('referrals')} icon={<Network size={20}/>} label="Referral System" />
       <NavButton active={activeTab === 'customers'} onClick={() => handleNavClick('customers')} icon={<Users size={20}/>} label="Customers" />
       <NavButton active={activeTab === 'settings'} onClick={() => handleNavClick('settings')} icon={<Settings size={20}/>} label="App Settings" />
+      <NavButton active={activeTab === 'profile'} onClick={() => handleNavClick('profile')} icon={<UserIcon size={20}/>} label="My Profile" />
     </>
   );
 
   return (
-    <div className="flex h-screen bg-gray-100 relative">
-      {/* Mobile Header */}
-      <div className="md:hidden absolute top-0 left-0 right-0 bg-slate-900 text-white p-4 flex justify-between items-center z-20 shadow-md">
-        <div className="flex items-center gap-2 font-bold text-xl">
-           <div className="w-8 h-8 rounded bg-indigo-500 flex items-center justify-center">A</div>
-           <span>Admin</span>
-        </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1">
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
-
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 left-0 right-0 bottom-0 bg-slate-800 z-10 p-4 overflow-y-auto animate-in slide-in-from-top-2">
-          <nav className="space-y-2">
-            <NavItems />
-            <div className="border-t border-slate-700 my-4 pt-4">
-              <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-700 transition-colors">
-                <LogOut size={20} /> <span>Logout</span>
-              </button>
-            </div>
-          </nav>
-        </div>
-      )}
-
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Desktop Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex-shrink-0 hidden md:flex flex-col">
-        <div className="p-6">
+      <aside className="w-64 bg-slate-900 text-white flex-shrink-0 hidden md:flex flex-col border-r border-slate-800">
+        <div className="p-6 h-16 flex items-center border-b border-slate-800">
            <div className="flex items-center gap-2 font-bold text-xl">
             <div className="w-8 h-8 rounded bg-indigo-500 flex items-center justify-center">A</div>
-            <span>Admin Panel</span>
+            <span>Admin</span>
            </div>
         </div>
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <NavItems />
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-red-400 transition-colors">
-            <LogOut size={20} />
-            <span>Logout</span>
-          </button>
-        </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-6 pt-20 md:pt-6">
-        {activeTab === 'stats' && <DashboardStats orders={orders} commissions={commissions} users={users} />}
-        {activeTab === 'shop' && (
-           <ShopSettings 
-             products={products} 
-             categories={categories} 
-             orders={orders} 
-             onAddProduct={addProduct} 
-             onUpdateProduct={updateProduct} 
-             onDeleteProduct={deleteProduct} 
-             onAddCategory={addCategory} 
-             onDeleteCategory={deleteCategory}
-             onUpdateStatus={updateOrderStatus} 
-           />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Global Header */}
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 z-20 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+              className="md:hidden p-1 text-gray-600 hover:bg-gray-100 rounded"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <h1 className="text-lg font-bold text-gray-800 capitalize hidden md:block">
+              {activeTab === 'stats' ? 'Dashboard Overview' : activeTab.replace(/([A-Z])/g, ' $1')}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border">
+              <div className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xs font-bold">
+                {currentUser?.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium text-gray-700 hidden sm:inline">{currentUser?.name}</span>
+            </div>
+            <button 
+              onClick={logout} 
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+            >
+              <LogOut size={18} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile Menu Overlay */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 top-16 bg-slate-900/50 backdrop-blur-sm z-30" onClick={() => setIsMobileMenuOpen(false)}>
+            <div className="w-64 h-full bg-slate-900 p-4 shadow-xl" onClick={e => e.stopPropagation()}>
+              <nav className="space-y-2">
+                <NavItems />
+              </nav>
+            </div>
+          </div>
         )}
-        {activeTab === 'settings' && <AppSettingsPanel settings={settings} onUpdate={updateSettings} />}
-        {activeTab === 'customers' && (
-           <CustomerList 
-             users={users} 
-             onDelete={deleteUser} 
-             onUpdate={updateUserProfile} 
-             onAdjustWallet={adminAdjustWallet} 
-           />
-        )}
-        {activeTab === 'referrals' && <ReferralSettingsPanel settings={settings} onUpdate={updateSettings} commissions={commissions} users={users} rootId={currentUser?.id || ''} />}
-        {activeTab === 'wallet' && (
-           <WalletSettings 
-             epins={epins} 
-             onGenerate={generateEPins} 
-             requests={walletRequests} 
-             onProcessRequest={processWalletRequest} 
-           />
-        )}
-      </main>
+
+        {/* Main Scrollable Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-7xl mx-auto space-y-8">
+            {activeTab === 'stats' && <DashboardStats orders={orders} commissions={commissions} users={users} />}
+            {activeTab === 'shop' && (
+               <ShopSettings 
+                 products={products} 
+                 categories={categories} 
+                 orders={orders} 
+                 onAddProduct={addProduct} 
+                 onUpdateProduct={updateProduct} 
+                 onDeleteProduct={deleteProduct} 
+                 onAddCategory={addCategory} 
+                 onDeleteCategory={deleteCategory}
+                 onUpdateStatus={updateOrderStatus} 
+               />
+            )}
+            {activeTab === 'settings' && <AppSettingsPanel settings={settings} onUpdate={updateSettings} />}
+            {activeTab === 'customers' && (
+               <CustomerList 
+                 users={users} 
+                 onDelete={deleteUser} 
+                 onUpdate={updateUserProfile} 
+                 onAdjustWallet={adminAdjustWallet} 
+               />
+            )}
+            {activeTab === 'referrals' && <ReferralSettingsPanel settings={settings} onUpdate={updateSettings} commissions={commissions} users={users} rootId={currentUser?.id || ''} />}
+            {activeTab === 'wallet' && (
+               <WalletSettings 
+                 epins={epins} 
+                 onGenerate={generateEPins} 
+                 requests={walletRequests} 
+                 onProcessRequest={processWalletRequest} 
+               />
+            )}
+            {activeTab === 'profile' && currentUser && (
+              <div className="space-y-6">
+                <ProfileView user={currentUser} />
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
@@ -125,10 +148,10 @@ export const AdminPanel = () => {
 const NavButton = ({ active, onClick, icon, label }: any) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
   >
     {icon}
-    <span>{label}</span>
+    <span className="font-medium">{label}</span>
   </button>
 );
 
@@ -142,24 +165,23 @@ const DashboardStats = ({ orders, commissions, users }: any) => {
   }));
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Dashboard Overview</h2>
+    <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard title="Total Revenue" value={`₹${totalRevenue.toFixed(2)}`} color="bg-green-500" />
-        <StatCard title="Commissions Paid" value={`₹${totalCommission.toFixed(2)}`} color="bg-indigo-500" />
-        <StatCard title="Total Users" value={users.length} color="bg-orange-500" />
+        <StatCard title="Total Revenue" value={`₹${totalRevenue.toFixed(2)}`} color="bg-green-600" />
+        <StatCard title="Commissions Paid" value={`₹${totalCommission.toFixed(2)}`} color="bg-indigo-600" />
+        <StatCard title="Total Users" value={users.length} color="bg-orange-600" />
       </div>
       
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-lg font-semibold mb-4">Recent Sales Trend</h3>
-        <div className="h-64">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <h3 className="text-lg font-bold text-gray-800 mb-6">Recent Sales Activity</h3>
+        <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="amount" fill="#4f46e5" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+              <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
+              <Bar dataKey="amount" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -169,9 +191,9 @@ const DashboardStats = ({ orders, commissions, users }: any) => {
 };
 
 const StatCard = ({ title, value, color }: any) => (
-  <div className={`${color} text-white p-6 rounded-xl shadow-lg`}>
-    <h3 className="text-sm opacity-90 uppercase tracking-wider font-semibold">{title}</h3>
-    <p className="text-3xl font-bold mt-2">{value}</p>
+  <div className={`${color} text-white p-6 rounded-2xl shadow-xl transition-transform hover:scale-[1.02] duration-200`}>
+    <h3 className="text-sm opacity-80 uppercase tracking-widest font-bold">{title}</h3>
+    <p className="text-4xl font-black mt-3">{value}</p>
   </div>
 );
 
@@ -190,29 +212,32 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 border-b border-gray-200 pb-2 overflow-x-auto">
-        <button onClick={() => setView('products')} className={`pb-2 px-1 whitespace-nowrap ${view === 'products' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500'}`}>Products</button>
-        <button onClick={() => setView('categories')} className={`pb-2 px-1 whitespace-nowrap ${view === 'categories' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500'}`}>Categories</button>
-        <button onClick={() => setView('orders')} className={`pb-2 px-1 whitespace-nowrap ${view === 'orders' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500'}`}>Orders & Delivery</button>
+      <div className="flex gap-1 bg-gray-200/50 p-1 rounded-xl w-fit">
+        <button onClick={() => setView('products')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${view === 'products' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Products</button>
+        <button onClick={() => setView('categories')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${view === 'categories' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Categories</button>
+        <button onClick={() => setView('orders')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${view === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Orders</button>
       </div>
 
       {view === 'categories' && (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4">
-           <h3 className="font-bold text-lg">Manage Categories</h3>
-           <div className="flex gap-2 max-w-md">
-             <input 
-               className="border p-2 rounded flex-1" 
-               placeholder="New Category Name" 
-               value={newCatName}
-               onChange={e => setNewCatName(e.target.value)}
-             />
-             <button onClick={handleAddCategory} className="bg-indigo-600 text-white px-4 py-2 rounded">Add</button>
+        <div className="bg-white p-6 rounded-xl shadow-sm border space-y-6">
+           <div>
+             <h3 className="font-bold text-gray-800 text-lg mb-4">Manage Categories</h3>
+             <div className="flex gap-2 max-w-md">
+               <input 
+                 className="flex-1 border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none transition-all" 
+                 placeholder="Category Name" 
+                 value={newCatName}
+                 onChange={e => setNewCatName(e.target.value)}
+               />
+               <button onClick={handleAddCategory} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Add</button>
+             </div>
            </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
              {categories.map((c: any) => (
-               <div key={c.id} className="flex justify-between items-center p-3 border rounded hover:bg-gray-50">
-                 <span>{c.name}</span>
-                 <button onClick={() => onDeleteCategory(c.id)} className="text-red-500 hover:bg-red-100 p-1 rounded"><Trash2 size={16}/></button>
+               <div key={c.id} className="flex justify-between items-center p-4 border border-gray-100 rounded-xl hover:bg-gray-50 group">
+                 <span className="font-medium text-gray-700">{c.name}</span>
+                 <button onClick={() => onDeleteCategory(c.id)} className="text-gray-400 group-hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all"><Trash2 size={18}/></button>
                </div>
              ))}
            </div>
@@ -222,9 +247,9 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
       {view === 'products' && (
         <div className="space-y-6">
            <div className="flex justify-between items-center">
-             <h3 className="text-lg font-semibold">Inventory</h3>
-             <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-               <Plus size={16} /> Add Product
+             <h3 className="text-xl font-bold text-gray-800">Product Catalog</h3>
+             <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20">
+               <Plus size={20} /> Add Product
              </button>
            </div>
            
@@ -232,7 +257,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
              <ProductForm 
                product={isEditing} 
                categories={categories}
-               onSave={(p) => {
+               onSave={(p: any) => {
                  if (isEditing) onUpdateProduct(p);
                  else onAddProduct({ ...p, id: crypto.randomUUID() });
                  setIsAdding(false);
@@ -242,68 +267,77 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
              />
            )}
 
-           <div className="bg-white rounded-lg shadow overflow-hidden">
-             <table className="w-full text-left">
-               <thead className="bg-gray-50">
-                 <tr>
-                   <th className="p-4 text-sm font-semibold text-gray-600">Product</th>
-                   <th className="p-4 text-sm font-semibold text-gray-600">Category</th>
-                   <th className="p-4 text-sm font-semibold text-gray-600">Price</th>
-                   <th className="p-4 text-sm font-semibold text-gray-600">Stock</th>
-                   <th className="p-4 text-sm font-semibold text-gray-600">Actions</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-gray-100">
-                 {products.map((p: any) => (
-                   <tr key={p.id} className="hover:bg-gray-50">
-                     <td className="p-4 font-medium flex items-center gap-3">
-                        <img src={p.imageUrl} className="w-10 h-10 rounded object-cover border" alt="" />
-                        {p.name}
-                     </td>
-                     <td className="p-4 text-gray-500">{p.category}</td>
-                     <td className="p-4">₹{p.price}</td>
-                     <td className="p-4">{p.stock}</td>
-                     <td className="p-4 flex gap-2">
-                       <button onClick={() => setIsEditing(p)} className="text-blue-600 hover:text-blue-800"><Edit2 size={16}/></button>
-                       <button onClick={() => onDeleteProduct(p.id)} className="text-red-600 hover:text-red-800"><Trash2 size={16}/></button>
-                     </td>
+           <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+             <div className="overflow-x-auto">
+               <table className="w-full text-left">
+                 <thead className="bg-gray-50/50">
+                   <tr className="border-b border-gray-100">
+                     <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Product</th>
+                     <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Category</th>
+                     <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Price</th>
+                     <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Stock</th>
+                     <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Actions</th>
                    </tr>
-                 ))}
-               </tbody>
-             </table>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                   {products.map((p: any) => (
+                     <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors">
+                       <td className="p-4 font-semibold flex items-center gap-4 text-gray-800">
+                          <img src={p.imageUrl} className="w-12 h-12 rounded-lg object-cover border border-gray-100" alt="" />
+                          {p.name}
+                       </td>
+                       <td className="p-4 text-sm text-gray-500"><span className="px-2.5 py-1 bg-gray-100 rounded-lg">{p.category}</span></td>
+                       <td className="p-4 font-bold text-gray-800">₹{p.price}</td>
+                       <td className="p-4">
+                         <span className={`text-sm font-bold ${p.stock < 10 ? 'text-red-500' : 'text-gray-600'}`}>
+                           {p.stock} units
+                         </span>
+                       </td>
+                       <td className="p-4 flex gap-2">
+                         <button onClick={() => setIsEditing(p)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit2 size={18}/></button>
+                         <button onClick={() => onDeleteProduct(p.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
            </div>
         </div>
       )}
       
       {view === 'orders' && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Order Management</h3>
+          <h3 className="text-xl font-bold text-gray-800">Order Management</h3>
           <div className="grid gap-4">
             {orders.map((order: any) => (
-              <div key={order.id} className="bg-white p-4 rounded-lg shadow border border-gray-100 flex justify-between items-center">
+              <div key={order.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-indigo-200 transition-all">
                 <div>
-                  <p className="font-bold text-gray-800">Order #{order.id.slice(0, 8)}</p>
-                  <p className="text-sm text-gray-500">By {order.userName} • {new Date(order.createdAt).toLocaleDateString()}</p>
-                  <div className="mt-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-black text-gray-900">#{order.id.slice(0, 8).toUpperCase()}</p>
+                    <span className="text-xs text-gray-400">• {new Date(order.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-sm font-bold text-indigo-600 mb-2">{order.userName}</p>
+                  <div className="flex flex-wrap gap-2">
                     {order.items.map((i:any) => (
-                      <span key={i.productId} className="text-xs bg-gray-100 px-2 py-1 rounded mr-2">{i.quantity}x {i.productName}</span>
+                      <span key={i.productId} className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded-md uppercase">{i.quantity}x {i.productName}</span>
                     ))}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-lg">₹{order.totalAmount.toFixed(2)}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                      order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
+                <div className="flex items-center justify-between md:flex-col md:items-end gap-3 pt-4 md:pt-0 border-t md:border-none">
+                  <p className="font-black text-2xl text-gray-800">₹{order.totalAmount.toFixed(2)}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${
+                      order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
+                      order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
                     }`}>{order.status}</span>
                     
                     {order.status !== 'DELIVERED' && (
                       <button 
                         onClick={() => onUpdateStatus(order.id, 'DELIVERED')}
-                        className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                        className="text-xs font-bold bg-slate-900 text-white px-4 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
                       >
-                        Confirm Delivery
+                        Confirm
                       </button>
                     )}
                   </div>
@@ -341,38 +375,51 @@ const ProductForm = ({ product, categories, onSave, onCancel }: any) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg border border-indigo-100 mb-6">
-      <h4 className="font-bold mb-4">{product ? 'Edit Product' : 'New Product'}</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input className="border p-2 rounded" placeholder="Product Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-        <select className="border p-2 rounded" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-          {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
-        <input type="number" className="border p-2 rounded" placeholder="Price" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} />
-        <input type="number" className="border p-2 rounded" placeholder="Stock" value={form.stock} onChange={e => setForm({...form, stock: Number(e.target.value)})} />
+    <div className="bg-white p-8 rounded-2xl shadow-xl border border-indigo-100 mb-8 animate-in zoom-in-95 duration-200">
+      <h4 className="font-black text-xl mb-6 text-gray-800">{product ? 'Update Item' : 'Create New Item'}</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase ml-1">Product Title</label>
+          <input className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none" placeholder="e.g. Pro Headphones" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase ml-1">Category</label>
+          <select className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+            {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase ml-1">Price (₹)</label>
+          <input type="number" className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none" placeholder="0.00" value={form.price} onChange={e => setForm({...form, price: Number(e.target.value)})} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase ml-1">Stock Level</label>
+          <input type="number" className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none" placeholder="Units available" value={form.stock} onChange={e => setForm({...form, stock: Number(e.target.value)})} />
+        </div>
         
-        <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
-            <div className="flex items-center gap-4">
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
-                {form.imageUrl && <img src={form.imageUrl} alt="Preview" className="h-12 w-12 rounded object-cover border" />}
+        <div className="md:col-span-2 space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Product Media</label>
+            <div className="flex items-center gap-6 p-4 border-2 border-dashed border-gray-200 rounded-2xl">
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                {form.imageUrl && <img src={form.imageUrl} alt="Preview" className="h-16 w-16 rounded-xl object-cover border-2 border-white shadow-md flex-shrink-0" />}
             </div>
         </div>
 
-        <div className="md:col-span-2 relative">
-          <textarea className="border p-2 rounded w-full h-24" placeholder="Description" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+        <div className="md:col-span-2 relative space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase ml-1">Marketing Description</label>
+          <textarea className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none h-32" placeholder="Write details or use AI..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
           <button 
              onClick={handleAiGenerate} 
              disabled={loadingAi}
-             className="absolute bottom-2 right-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1 hover:bg-purple-200"
+             className="absolute bottom-4 right-4 text-xs font-bold bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 shadow-md transition-all active:scale-95"
           >
-            <Wand2 size={12} /> {loadingAi ? 'Generating...' : 'AI Generate'}
+            <Wand2 size={14} /> {loadingAi ? 'AI Thinking...' : 'AI Writer'}
           </button>
         </div>
       </div>
-      <div className="flex justify-end gap-2 mt-4">
-        <button onClick={onCancel} className="px-4 py-2 text-gray-600">Cancel</button>
-        <button onClick={() => onSave(form)} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Product</button>
+      <div className="flex justify-end gap-3 mt-8 border-t pt-6">
+        <button onClick={onCancel} className="px-6 py-2 text-sm font-bold text-gray-500 hover:text-gray-800">Dismiss</button>
+        <button onClick={() => onSave(form)} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">Publish Item</button>
       </div>
     </div>
   );
@@ -383,7 +430,7 @@ const AppSettingsPanel = ({ settings, onUpdate }: any) => {
   
   const handleSave = () => {
     onUpdate(form);
-    alert("Settings Saved!");
+    alert("Configurations updated!");
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,64 +456,71 @@ const AppSettingsPanel = ({ settings, onUpdate }: any) => {
   };
 
   return (
-    <div className="max-w-2xl bg-white p-8 rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-6">Application Settings</h2>
-      
-      <div className="space-y-4">
+    <div className="max-w-3xl space-y-6">
+      <div className="bg-white p-8 rounded-2xl shadow-sm border space-y-8">
         <div>
-          <label className="block text-sm font-medium text-gray-700">App Name</label>
-          <input 
-            type="text" 
-            value={form.appName} 
-            onChange={e => setForm({...form, appName: e.target.value})}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
-          />
+          <h2 className="text-2xl font-black text-gray-900 mb-1">Global Configuration</h2>
+          <p className="text-gray-500 text-sm">Fine-tune your platform's core identity and operations.</p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
-                <div className="flex items-center gap-4">
-                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
-                    {form.logoUrl && <img src={form.logoUrl} alt="Logo Preview" className="h-10 w-10 object-contain" />}
-                </div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase ml-1">Platform Name</label>
+              <input 
+                type="text" 
+                value={form.appName} 
+                onChange={e => setForm({...form, appName: e.target.value})}
+                className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none"
+              />
             </div>
             
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Admin UPI QR Code</label>
-                <div className="flex items-center gap-4">
-                    <input type="file" accept="image/*" onChange={handleQrUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
-                    {form.adminUpiQrUrl && <img src={form.adminUpiQrUrl} alt="QR Preview" className="h-10 w-10 object-contain border rounded" />}
-                </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase ml-1">Admin UPI ID</label>
+              <input 
+                type="text" 
+                value={form.adminUpiId || ''} 
+                onChange={e => setForm({...form, adminUpiId: e.target.value})}
+                className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none"
+                placeholder="payment@upi"
+              />
             </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Admin UPI ID (For Wallet Requests)</label>
-          <input 
-            type="text" 
-            value={form.adminUpiId || ''} 
-            onChange={e => setForm({...form, adminUpiId: e.target.value})}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
-            placeholder="admin@upi"
-          />
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-          <div>
-            <h4 className="font-medium text-gray-900">User Registration</h4>
-            <p className="text-sm text-gray-500">Allow new users to sign up.</p>
           </div>
-          <button 
-            onClick={() => setForm({...form, isRegistrationOpen: !form.isRegistrationOpen})}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full ${form.isRegistrationOpen ? 'bg-green-600' : 'bg-gray-200'}`}
-          >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${form.isRegistrationOpen ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase ml-1">Platform Logo</label>
+                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border-2 border-gray-100">
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-white file:text-indigo-700 shadow-sm"/>
+                      {form.logoUrl && <img src={form.logoUrl} alt="Logo" className="h-10 w-10 object-contain flex-shrink-0" />}
+                  </div>
+              </div>
+              
+              <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase ml-1">Payment QR Code</label>
+                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border-2 border-gray-100">
+                      <input type="file" accept="image/*" onChange={handleQrUpload} className="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-white file:text-indigo-700 shadow-sm"/>
+                      {form.adminUpiQrUrl && <img src={form.adminUpiQrUrl} alt="QR" className="h-10 w-10 object-contain border bg-white rounded flex-shrink-0" />}
+                  </div>
+              </div>
+          </div>
 
-        <div className="pt-4">
-          <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-medium">Save Changes</button>
+          <div className="flex items-center justify-between p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
+            <div>
+              <h4 className="font-bold text-indigo-900">Open for Registration</h4>
+              <p className="text-xs text-indigo-600">Toggle public access for new user accounts.</p>
+            </div>
+            <button 
+              onClick={() => setForm({...form, isRegistrationOpen: !form.isRegistrationOpen})}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.isRegistrationOpen ? 'bg-indigo-600' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition shadow-sm ${form.isRegistrationOpen ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          <div className="pt-4">
+            <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]">Commit Changes</button>
+          </div>
         </div>
       </div>
     </div>
@@ -497,33 +551,50 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
   };
 
   return (
-  <div className="bg-white rounded-lg shadow overflow-hidden">
-    <div className="p-4 border-b border-gray-200">
-      <h3 className="text-lg font-bold">Registered Customers</h3>
+  <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+    <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+      <h3 className="text-xl font-bold text-gray-800">User Management</h3>
+      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{users.length} Total Users</span>
     </div>
     
     <div className="overflow-x-auto">
         <table className="w-full text-left">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50/50">
             <tr>
-            <th className="p-4 text-sm text-gray-600">Name</th>
-            <th className="p-4 text-sm text-gray-600">Email</th>
-            <th className="p-4 text-sm text-gray-600">Role</th>
-            <th className="p-4 text-sm text-gray-600">Wallet</th>
-            <th className="p-4 text-sm text-gray-600">Actions</th>
+            <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Member</th>
+            <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Contact</th>
+            <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Role</th>
+            <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Assets</th>
+            <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Management</th>
             </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-50">
             {users.map((u: any) => (
-            <tr key={u.id} className="hover:bg-gray-50">
-                <td className="p-4 font-medium">{u.name}</td>
-                <td className="p-4 text-gray-500">{u.email}</td>
-                <td className="p-4"><span className="text-xs font-bold bg-gray-200 px-2 py-1 rounded">{u.role}</span></td>
-                <td className="p-4 font-mono">₹{u.walletBalance.toFixed(2)}</td>
-                <td className="p-4 flex gap-2">
-                    <button onClick={() => setEditingUser(u)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Edit"><Edit2 size={18}/></button>
-                    <button onClick={() => setWalletModal(u)} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Manage Wallet"><Wallet size={18}/></button>
-                    <button onClick={() => onDelete(u.id)} className="text-red-600 hover:bg-red-50 p-1 rounded" title="Delete"><Trash2 size={18}/></button>
+            <tr key={u.id} className="hover:bg-indigo-50/20 transition-colors">
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-gray-600">
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-bold text-gray-800">{u.name}</span>
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm text-gray-500">{u.email}</div>
+                  <div className="text-[10px] text-gray-400 font-bold">{u.mobile || 'No Phone'}</div>
+                </td>
+                <td className="p-4">
+                  <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {u.role}
+                  </span>
+                </td>
+                <td className="p-4 font-black text-gray-800">₹{u.walletBalance.toFixed(2)}</td>
+                <td className="p-4">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setEditingUser(u)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Profile"><Edit2 size={18}/></button>
+                    <button onClick={() => setWalletModal(u)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Adjust Balance"><Wallet size={18}/></button>
+                    {u.role !== 'ADMIN' && <button onClick={() => onDelete(u.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Terminate User"><Trash2 size={18}/></button>}
+                  </div>
                 </td>
             </tr>
             ))}
@@ -531,38 +602,55 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
         </table>
     </div>
 
-    {/* Edit User Modal */}
+    {/* Modals are globally attached */}
     {editingUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                <h3 className="font-bold text-lg mb-4">Edit User</h3>
-                <form onSubmit={handleEditSave} className="space-y-3">
-                    <input className="border p-2 w-full rounded" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} placeholder="Name" />
-                    <input className="border p-2 w-full rounded" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} placeholder="Email" />
-                    <input className="border p-2 w-full rounded" value={editingUser.mobile || ''} onChange={e => setEditingUser({...editingUser, mobile: e.target.value})} placeholder="Mobile" />
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-600">Cancel</button>
-                        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] backdrop-blur-sm p-4">
+            <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                <h3 className="font-black text-2xl mb-6 text-gray-900 border-b pb-4">Update Account</h3>
+                <form onSubmit={handleEditSave} className="space-y-5">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Full Name</label>
+                      <input className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Email</label>
+                      <input className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Mobile</label>
+                      <input className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500" value={editingUser.mobile || ''} onChange={e => setEditingUser({...editingUser, mobile: e.target.value})} />
+                    </div>
+                    <div className="flex justify-end gap-3 mt-8">
+                        <button type="button" onClick={() => setEditingUser(null)} className="px-6 py-2 font-bold text-gray-500">Cancel</button>
+                        <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all">Save Profile</button>
                     </div>
                 </form>
             </div>
         </div>
     )}
 
-    {/* Wallet Management Modal */}
     {walletModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                <h3 className="font-bold text-lg mb-2">Manage Wallet: {walletModal.name}</h3>
-                <p className="text-sm text-gray-500 mb-4">Current Balance: ₹{walletModal.walletBalance.toFixed(2)}</p>
-                <div className="space-y-3">
-                    <input type="number" className="border p-2 w-full rounded" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" />
-                    <input className="border p-2 w-full rounded" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Reason / Description" />
-                    <div className="flex gap-2 mt-4">
-                        <button onClick={() => handleWalletAdjust('CREDIT')} className="flex-1 bg-green-600 text-white py-2 rounded flex justify-center gap-2"><ArrowUpCircle/> Credit</button>
-                        <button onClick={() => handleWalletAdjust('DEBIT')} className="flex-1 bg-red-600 text-white py-2 rounded flex justify-center gap-2"><ArrowDownCircle/> Debit</button>
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] backdrop-blur-sm p-4">
+            <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="p-3 bg-green-100 text-green-700 rounded-2xl"><Wallet size={24}/></div>
+                   <h3 className="font-black text-2xl text-gray-900">Wallet Control</h3>
+                </div>
+                <p className="text-sm text-gray-500 mb-8 ml-1">{walletModal.name}'s balance: <span className="font-bold text-indigo-600">₹{walletModal.walletBalance.toFixed(2)}</span></p>
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Amount (INR)</label>
+                      <input type="number" className="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-green-500 font-black text-xl" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
                     </div>
-                    <button onClick={() => setWalletModal(null)} className="w-full text-center text-gray-500 mt-2 text-sm">Cancel</button>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Note</label>
+                      <input className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-green-500" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Reason for adjustment" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mt-8">
+                        <button onClick={() => handleWalletAdjust('CREDIT')} className="bg-green-600 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"><ArrowUpCircle size={20}/> Add</button>
+                        <button onClick={() => handleWalletAdjust('DEBIT')} className="bg-red-600 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"><ArrowDownCircle size={20}/> Deduct</button>
+                    </div>
+                    <button onClick={() => setWalletModal(null)} className="w-full text-center text-gray-400 pt-4 font-bold hover:text-gray-600 transition-colors">Dismiss</button>
                 </div>
             </div>
         </div>
@@ -580,61 +668,76 @@ const ReferralSettingsPanel = ({ settings, onUpdate, commissions, users, rootId 
 
   const saveLevels = () => {
     onUpdate({ ...settings, referralLevels: levels });
-    alert("Commission rates updated!");
+    alert("Commission structure updated!");
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-bold mb-4">Commission Rates (Multi-Level)</h3>
-          <div className="space-y-3">
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+          <div className="border-b pb-4">
+            <h3 className="text-xl font-black text-gray-800">Commission Tiers</h3>
+            <p className="text-sm text-gray-500">Defined rates for each depth level.</p>
+          </div>
+          <div className="space-y-4">
             {levels.map((l: any) => (
-              <div key={l.level} className="flex items-center gap-4">
-                <span className="w-20 font-medium text-gray-600">Level {l.level}</span>
-                <input 
-                  type="number" 
-                  value={l.commissionPercentage} 
-                  onChange={e => handleLevelChange(l.level, Number(e.target.value))}
-                  className="border p-2 rounded w-24"
-                />
-                <span className="text-gray-500">%</span>
+              <div key={l.level} className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <span className="w-24 font-black text-gray-400 uppercase text-xs">Level {l.level}</span>
+                <div className="flex-1 flex items-center gap-3">
+                  <input 
+                    type="number" 
+                    value={l.commissionPercentage} 
+                    onChange={e => handleLevelChange(l.level, Number(e.target.value))}
+                    className="border-2 border-white bg-white p-2 rounded-lg w-20 text-center font-bold focus:border-indigo-500 outline-none shadow-sm"
+                  />
+                  <span className="font-bold text-gray-600">%</span>
+                </div>
               </div>
             ))}
-            <button onClick={saveLevels} className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Update Rates</button>
+            <button onClick={saveLevels} className="w-full mt-4 bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 shadow-xl transition-all">Sync Rates</button>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-bold mb-4">Referral Tree (Preview)</h3>
-          <ReferralTree users={users} rootUserId={rootId} />
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col min-h-[400px]">
+          <div className="border-b pb-4 mb-6">
+            <h3 className="text-xl font-black text-gray-800">Master Hierarchy</h3>
+            <p className="text-sm text-gray-500">Visual mapping of the entire downline.</p>
+          </div>
+          <div className="flex-1 overflow-auto">
+            <ReferralTree users={users} rootUserId={rootId} />
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-bold mb-4">Recent Commission Payouts</h3>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="p-3">Beneficiary</th>
-              <th className="p-3">Source User</th>
-              <th className="p-3">Level</th>
-              <th className="p-3">Amount</th>
-              <th className="p-3">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-             {commissions.slice(0, 5).map((c: any) => (
-               <tr key={c.id}>
-                 <td className="p-3">{users.find((u:any) => u.id === c.beneficiaryId)?.name || 'Unknown'}</td>
-                 <td className="p-3">{users.find((u:any) => u.id === c.sourceUserId)?.name || 'Unknown'}</td>
-                 <td className="p-3">{c.level}</td>
-                 <td className="p-3 font-bold text-green-600">+₹{c.amount.toFixed(2)}</td>
-                 <td className="p-3 text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
-               </tr>
-             ))}
-          </tbody>
-        </table>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
+           <h3 className="text-xl font-black text-gray-800">Audit Trail: Payouts</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Beneficiary</th>
+                <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Triggered By</th>
+                <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Depth</th>
+                <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Payout</th>
+                <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+               {commissions.slice().reverse().slice(0, 10).map((c: any) => (
+                 <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                   <td className="p-4 font-bold text-gray-800">{users.find((u:any) => u.id === c.beneficiaryId)?.name || 'Unknown'}</td>
+                   <td className="p-4 text-gray-600">{users.find((u:any) => u.id === c.sourceUserId)?.name || 'Unknown'}</td>
+                   <td className="p-4"><span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded uppercase">L{c.level}</span></td>
+                   <td className="p-4 font-black text-green-600">₹{c.amount.toFixed(2)}</td>
+                   <td className="p-4 text-[10px] text-gray-400 font-bold uppercase">{new Date(c.date).toLocaleString()}</td>
+                 </tr>
+               ))}
+               {commissions.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No payouts recorded yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -649,107 +752,121 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
     const handleGenerate = () => {
         if(genAmount && genCount) {
             onGenerate(Number(genAmount), Number(genCount), Number(validity));
-            alert("E-Pins Generated!");
+            alert("Digital tokens minted!");
             setGenAmount('');
             setGenCount('');
         }
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex gap-4 border-b pb-2">
-                <button onClick={() => setTab('epins')} className={`pb-2 ${tab === 'epins' ? 'border-b-2 border-indigo-600 font-bold' : 'text-gray-500'}`}>E-Pins Management</button>
-                <button onClick={() => setTab('requests')} className={`pb-2 ${tab === 'requests' ? 'border-b-2 border-indigo-600 font-bold' : 'text-gray-500'}`}>Wallet Requests</button>
+        <div className="space-y-8">
+            <div className="flex gap-2 bg-gray-200/50 p-1.5 rounded-2xl w-fit">
+                <button onClick={() => setTab('epins')} className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${tab === 'epins' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-500 hover:text-gray-800'}`}>Token Manager</button>
+                <button onClick={() => setTab('requests')} className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${tab === 'requests' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-500 hover:text-gray-800'}`}>Deposit Queue</button>
             </div>
 
             {tab === 'epins' ? (
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="font-bold text-lg mb-4">Generate E-Pins</h3>
-                        <div className="flex gap-4 items-end flex-wrap">
-                            <div>
-                                <label className="block text-sm text-gray-600">Amount (₹)</label>
-                                <input type="number" className="border p-2 rounded w-32" value={genAmount} onChange={e => setGenAmount(e.target.value)} />
+                <div className="space-y-8 animate-in slide-in-from-left-4">
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+                        <div className="border-b pb-4">
+                          <h3 className="font-black text-xl text-gray-800">E-Pin Minting</h3>
+                          <p className="text-sm text-gray-500">Generate high-security credit tokens for offline distribution.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Value (₹)</label>
+                                <input type="number" className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500 font-bold" placeholder="500" value={genAmount} onChange={e => setGenAmount(e.target.value)} />
                             </div>
-                            <div>
-                                <label className="block text-sm text-gray-600">Count</label>
-                                <input type="number" className="border p-2 rounded w-24" value={genCount} onChange={e => setGenCount(e.target.value)} />
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Quantity</label>
+                                <input type="number" className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500 font-bold" placeholder="10" value={genCount} onChange={e => setGenCount(e.target.value)} />
                             </div>
-                            <div>
-                                <label className="block text-sm text-gray-600">Validity (Days)</label>
-                                <input type="number" className="border p-2 rounded w-24" value={validity} onChange={e => setValidity(e.target.value)} />
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Life span (Days)</label>
+                                <input type="number" className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none focus:border-indigo-500 font-bold" value={validity} onChange={e => setValidity(e.target.value)} />
                             </div>
-                            <button onClick={handleGenerate} className="bg-indigo-600 text-white px-6 py-2 rounded h-10">Generate</button>
+                            <button onClick={handleGenerate} className="bg-indigo-600 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition-all">Generate</button>
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="font-bold text-lg mb-4">E-Pin List</h3>
-                        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100">
+                           <h3 className="font-black text-xl text-gray-800">Active Token Registry</h3>
+                        </div>
+                        <div className="overflow-x-auto max-h-[600px]">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50 sticky top-0">
+                                <thead className="bg-gray-50/50 sticky top-0">
                                     <tr>
-                                        <th className="p-3">Code</th>
-                                        <th className="p-3">Amount</th>
-                                        <th className="p-3">Status</th>
-                                        <th className="p-3">Created</th>
-                                        <th className="p-3">Expires</th>
+                                        <th className="p-4 text-xs font-bold uppercase text-gray-500">Secure Code</th>
+                                        <th className="p-4 text-xs font-bold uppercase text-gray-500">Asset Value</th>
+                                        <th className="p-4 text-xs font-bold uppercase text-gray-500">Availability</th>
+                                        <th className="p-4 text-xs font-bold uppercase text-gray-500">Expires</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-gray-50">
                                     {epins.slice().reverse().map((pin: any) => (
-                                        <tr key={pin.code} className="border-t">
-                                            <td className="p-3 font-mono">{pin.code}</td>
-                                            <td className="p-3">₹{pin.amount}</td>
-                                            <td className="p-3">
-                                                <span className={`px-2 py-1 rounded text-xs ${pin.isUsed ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                    {pin.isUsed ? 'USED' : 'ACTIVE'}
+                                        <tr key={pin.code} className="hover:bg-gray-50 transition-colors">
+                                            <td className="p-4 font-black text-indigo-700 tracking-widest uppercase">{pin.code}</td>
+                                            <td className="p-4 font-black text-gray-800">₹{pin.amount}</td>
+                                            <td className="p-4">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pin.isUsed ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                                    {pin.isUsed ? 'Voided' : 'Valid'}
                                                 </span>
                                             </td>
-                                            <td className="p-3">{new Date(pin.createdAt).toLocaleDateString()}</td>
-                                            <td className="p-3">{pin.expiresAt ? new Date(pin.expiresAt).toLocaleDateString() : '-'}</td>
+                                            <td className="p-4 text-[10px] font-bold text-gray-400 uppercase">{pin.expiresAt ? new Date(pin.expiresAt).toLocaleDateString() : 'Perpetual'}</td>
                                         </tr>
                                     ))}
+                                    {epins.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-400 font-medium">Registry is empty.</td></tr>}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="font-bold text-lg mb-4">Pending Wallet Requests (UPI)</h3>
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="p-3">User</th>
-                                <th className="p-3">Txn ID</th>
-                                <th className="p-3">Amount</th>
-                                <th className="p-3">Date</th>
-                                <th className="p-3">Status</th>
-                                <th className="p-3">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {requests.map((req: any) => (
-                                <tr key={req.id} className="border-t">
-                                    <td className="p-3">{req.userName}</td>
-                                    <td className="p-3 font-mono text-sm">{req.transactionId}</td>
-                                    <td className="p-3 font-bold">₹{req.amount}</td>
-                                    <td className="p-3 text-sm text-gray-500">{new Date(req.date).toLocaleDateString()}</td>
-                                    <td className="p-3"><span className="text-xs font-bold bg-yellow-100 text-yellow-800 px-2 py-1 rounded">{req.status}</span></td>
-                                    <td className="p-3">
-                                        {req.status === 'PENDING' && (
-                                            <div className="flex gap-2">
-                                                <button onClick={() => onProcessRequest(req.id, RequestStatus.APPROVED)} className="bg-green-600 text-white p-1 rounded"><CheckCircle size={16}/></button>
-                                                <button onClick={() => onProcessRequest(req.id, RequestStatus.REJECTED)} className="bg-red-600 text-white p-1 rounded"><XCircle size={16}/></button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            {requests.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-gray-500">No requests found.</td></tr>}
-                        </tbody>
-                    </table>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-right-4">
+                    <div className="p-6 border-b border-gray-100">
+                        <h3 className="font-black text-xl text-gray-800">Approval Workflow</h3>
+                        <p className="text-sm text-gray-500">Review and reconcile incoming manual transfers.</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                          <thead className="bg-gray-50/50">
+                              <tr>
+                                  <th className="p-4 text-xs font-bold uppercase text-gray-500">Applicant</th>
+                                  <th className="p-4 text-xs font-bold uppercase text-gray-500">Payment ID</th>
+                                  <th className="p-4 text-xs font-bold uppercase text-gray-500">Funds</th>
+                                  <th className="p-4 text-xs font-bold uppercase text-gray-500">Status</th>
+                                  <th className="p-4 text-xs font-bold uppercase text-gray-500">Actions</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                              {requests.map((req: any) => (
+                                  <tr key={req.id} className="hover:bg-gray-50 transition-colors">
+                                      <td className="p-4 font-bold text-gray-800">{req.userName}</td>
+                                      <td className="p-4 font-black text-xs text-indigo-600 tracking-tighter">{req.transactionId}</td>
+                                      <td className="p-4 font-black text-gray-900">₹{req.amount}</td>
+                                      <td className="p-4">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                          req.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 
+                                          req.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                          {req.status}
+                                        </span>
+                                      </td>
+                                      <td className="p-4">
+                                          {req.status === 'PENDING' ? (
+                                              <div className="flex gap-2">
+                                                  <button onClick={() => onProcessRequest(req.id, RequestStatus.APPROVED)} className="bg-green-600 text-white p-2 rounded-xl shadow-sm hover:bg-green-700 transition-colors"><CheckCircle size={18}/></button>
+                                                  <button onClick={() => onProcessRequest(req.id, RequestStatus.REJECTED)} className="bg-red-600 text-white p-2 rounded-xl shadow-sm hover:bg-red-700 transition-colors"><XCircle size={18}/></button>
+                                              </div>
+                                          ) : <span className="text-xs text-gray-300 font-bold italic">Closed</span>}
+                                      </td>
+                                  </tr>
+                              ))}
+                              {requests.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No pending requests found.</td></tr>}
+                          </tbody>
+                      </table>
+                    </div>
                 </div>
             )}
         </div>
