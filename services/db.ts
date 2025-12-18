@@ -2,32 +2,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { User, Product, Category, Order, AppSettings, ReferralCommissionLog, EPin, WalletRequest, WalletTransaction } from '../types';
 
-// These are injected via the environment
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+/**
+ * Supabase Project Details
+ * URL: https://xszjkgornpwkdcahmzns.supabase.co
+ * Project ID: xszjkgornpwkdcahmzns
+ */
+const supabaseUrl = 'https://xszjkgornpwkdcahmzns.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzemprZ29ybnB3a2RjYWhtem5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5ODcwMTksImV4cCI6MjA4MTU2MzAxOX0.vd63_ocF_XUYGmPIWXtjH6x8LJRW2sHcte7LHT2TupA';
 
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
-  : null;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const IS_SUPABASE_CONNECTED = !!supabase;
-
-if (IS_SUPABASE_CONNECTED) {
-  console.log("🚀 Supabase Connection Found. Syncing with Cloud...");
-} else {
-  console.warn("⚠️ Supabase Credentials Missing. Running in LocalStorage mode.");
-}
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const getLocal = <T>(key: string, fallback: T): T => {
-  const s = localStorage.getItem(key);
-  return s ? JSON.parse(s) : fallback;
-};
-
-const setLocal = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
-};
+// We now consider Supabase as the primary source since keys are explicitly provided
+export const IS_SUPABASE_CONNECTED = true;
 
 const LOCAL_KEYS = {
   USERS: 'rc_users',
@@ -41,228 +27,214 @@ const LOCAL_KEYS = {
   WALLET_HIST: 'rc_wallet_hist'
 };
 
+const getLocal = <T>(key: string, fallback: T): T => {
+  const s = localStorage.getItem(key);
+  return s ? JSON.parse(s) : fallback;
+};
+
+const setLocal = (key: string, data: any) => {
+  localStorage.setItem(key, JSON.stringify(data));
+};
+
+/**
+ * Helper to log detailed Supabase errors
+ */
+const logError = (context: string, error: any) => {
+  console.error(`Supabase Error [${context}]:`, error.message || error);
+  if (error.details) console.error("Details:", error.details);
+  if (error.hint) console.error("Hint:", error.hint);
+};
+
 export const db = {
   async getUsers(): Promise<User[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('profiles').select('*');
-        if (error) throw error;
-        return (data as User[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getUsers]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) throw error;
+      return (data as User[]) || [];
+    } catch (e) { 
+      logError("Fetch Users", e);
+      return getLocal(LOCAL_KEYS.USERS, []);
     }
-    return getLocal(LOCAL_KEYS.USERS, []);
   },
 
   async saveUsers(users: User[]) {
-    if (supabase) {
+    if (users.length > 0) {
       try {
-        const { error } = await supabase.from('profiles').upsert(users);
+        // Ensure bankDetails is treated as a JSON object for Supabase compatibility
+        const sanitizedUsers = users.map(u => ({
+          ...u,
+          bankDetails: u.bankDetails ? JSON.parse(JSON.stringify(u.bankDetails)) : null
+        }));
+        
+        const { error } = await supabase.from('profiles').upsert(sanitizedUsers, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveUsers]:", e);
-      }
+      } catch (e) { logError("Save Profiles", e); }
     }
     setLocal(LOCAL_KEYS.USERS, users);
   },
 
   async getSettings(): Promise<AppSettings | null> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
-        if (error) throw error;
-        return data as AppSettings;
-      } catch (e) {
-        console.error("Supabase Error [getSettings]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('app_settings').select('*').eq('id', 1).maybeSingle();
+      if (error) throw error;
+      return data as AppSettings;
+    } catch (e) { 
+      logError("Fetch Settings", e);
+      return getLocal(LOCAL_KEYS.SETTINGS, null);
     }
-    return getLocal(LOCAL_KEYS.SETTINGS, null);
   },
 
   async saveSettings(settings: AppSettings) {
-    if (supabase) {
-      try {
-        const { error } = await supabase.from('app_settings').upsert({ id: 1, ...settings });
-        if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveSettings]:", e);
-      }
-    }
+    try {
+      const { error } = await supabase.from('app_settings').upsert({ id: 1, ...settings }, { onConflict: 'id' });
+      if (error) throw error;
+    } catch (e) { logError("Save Settings", e); }
     setLocal(LOCAL_KEYS.SETTINGS, settings);
   },
 
   async getProducts(): Promise<Product[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('products').select('*');
-        if (error) throw error;
-        return (data as Product[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getProducts]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('products').select('*');
+      if (error) throw error;
+      return (data as Product[]) || [];
+    } catch (e) { 
+      logError("Fetch Products", e);
+      return getLocal(LOCAL_KEYS.PRODUCTS, []);
     }
-    return getLocal(LOCAL_KEYS.PRODUCTS, []);
   },
 
   async saveProducts(products: Product[]) {
-    if (supabase) {
+    if (products.length > 0) {
       try {
-        const { error } = await supabase.from('products').upsert(products);
+        const { error } = await supabase.from('products').upsert(products, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveProducts]:", e);
-      }
+      } catch (e) { logError("Save Products", e); }
     }
     setLocal(LOCAL_KEYS.PRODUCTS, products);
   },
 
   async getCategories(): Promise<Category[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('categories').select('*');
-        if (error) throw error;
-        return (data as Category[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getCategories]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('categories').select('*');
+      if (error) throw error;
+      return (data as Category[]) || [];
+    } catch (e) { 
+      logError("Fetch Categories", e);
+      return getLocal(LOCAL_KEYS.CATEGORIES, []);
     }
-    return getLocal(LOCAL_KEYS.CATEGORIES, []);
   },
 
   async saveCategories(cats: Category[]) {
-    if (supabase) {
+    if (cats.length > 0) {
       try {
-        const { error } = await supabase.from('categories').upsert(cats);
+        const { error } = await supabase.from('categories').upsert(cats, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveCategories]:", e);
-      }
+      } catch (e) { logError("Save Categories", e); }
     }
     setLocal(LOCAL_KEYS.CATEGORIES, cats);
   },
 
   async getOrders(): Promise<Order[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('orders').select('*').order('createdAt', { ascending: false });
-        if (error) throw error;
-        return (data as Order[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getOrders]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('orders').select('*').order('createdAt', { ascending: false });
+      if (error) throw error;
+      return (data as Order[]) || [];
+    } catch (e) { 
+      logError("Fetch Orders", e);
+      return getLocal(LOCAL_KEYS.ORDERS, []);
     }
-    return getLocal(LOCAL_KEYS.ORDERS, []);
   },
 
   async saveOrders(orders: Order[]) {
-    if (supabase) {
+    if (orders.length > 0) {
       try {
-        const { error } = await supabase.from('orders').upsert(orders);
+        const { error } = await supabase.from('orders').upsert(orders, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveOrders]:", e);
-      }
+      } catch (e) { logError("Save Orders", e); }
     }
     setLocal(LOCAL_KEYS.ORDERS, orders);
   },
 
   async getCommissions(): Promise<ReferralCommissionLog[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('commissions').select('*');
-        if (error) throw error;
-        return (data as ReferralCommissionLog[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getCommissions]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('commissions').select('*');
+      if (error) throw error;
+      return (data as ReferralCommissionLog[]) || [];
+    } catch (e) { 
+      logError("Fetch Commissions", e);
+      return getLocal(LOCAL_KEYS.COMMISSIONS, []);
     }
-    return getLocal(LOCAL_KEYS.COMMISSIONS, []);
   },
 
   async saveCommissions(logs: ReferralCommissionLog[]) {
-    if (supabase) {
+    if (logs.length > 0) {
       try {
-        const { error } = await supabase.from('commissions').upsert(logs);
+        const { error } = await supabase.from('commissions').upsert(logs, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveCommissions]:", e);
-      }
+      } catch (e) { logError("Save Commissions", e); }
     }
     setLocal(LOCAL_KEYS.COMMISSIONS, logs);
   },
 
   async getEpins(): Promise<EPin[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('epins').select('*');
-        if (error) throw error;
-        return (data as EPin[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getEpins]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('epins').select('*');
+      if (error) throw error;
+      return (data as EPin[]) || [];
+    } catch (e) { 
+      logError("Fetch Epins", e);
+      return getLocal(LOCAL_KEYS.EPINS, []);
     }
-    return getLocal(LOCAL_KEYS.EPINS, []);
   },
 
   async saveEpins(pins: EPin[]) {
-    if (supabase) {
+    if (pins.length > 0) {
       try {
-        const { error } = await supabase.from('epins').upsert(pins);
+        const { error } = await supabase.from('epins').upsert(pins, { onConflict: 'code' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveEpins]:", e);
-      }
+      } catch (e) { logError("Save Epins", e); }
     }
     setLocal(LOCAL_KEYS.EPINS, pins);
   },
 
   async getWalletRequests(): Promise<WalletRequest[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('wallet_requests').select('*');
-        if (error) throw error;
-        return (data as WalletRequest[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getWalletRequests]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('wallet_requests').select('*');
+      if (error) throw error;
+      return (data as WalletRequest[]) || [];
+    } catch (e) { 
+      logError("Fetch Wallet Requests", e);
+      return getLocal(LOCAL_KEYS.WALLET_REQS, []);
     }
-    return getLocal(LOCAL_KEYS.WALLET_REQS, []);
   },
 
   async saveWalletRequests(reqs: WalletRequest[]) {
-    if (supabase) {
+    if (reqs.length > 0) {
       try {
-        const { error } = await supabase.from('wallet_requests').upsert(reqs);
+        const { error } = await supabase.from('wallet_requests').upsert(reqs, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveWalletRequests]:", e);
-      }
+      } catch (e) { logError("Save WalletRequests", e); }
     }
     setLocal(LOCAL_KEYS.WALLET_REQS, reqs);
   },
 
   async getWalletHistory(): Promise<WalletTransaction[]> {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('wallet_history').select('*');
-        if (error) throw error;
-        return (data as WalletTransaction[]) || [];
-      } catch (e) {
-        console.error("Supabase Error [getWalletHistory]:", e);
-      }
+    try {
+      const { data, error } = await supabase.from('wallet_history').select('*');
+      if (error) throw error;
+      return (data as WalletTransaction[]) || [];
+    } catch (e) { 
+      logError("Fetch Wallet History", e);
+      return getLocal(LOCAL_KEYS.WALLET_HIST, []);
     }
-    return getLocal(LOCAL_KEYS.WALLET_HIST, []);
   },
 
   async saveWalletHistory(hist: WalletTransaction[]) {
-    if (supabase) {
+    if (hist.length > 0) {
       try {
-        const { error } = await supabase.from('wallet_history').upsert(hist);
+        const { error } = await supabase.from('wallet_history').upsert(hist, { onConflict: 'id' });
         if (error) throw error;
-      } catch (e) {
-        console.error("Supabase Error [saveWalletHistory]:", e);
-      }
+      } catch (e) { logError("Save WalletHistory", e); }
     }
     setLocal(LOCAL_KEYS.WALLET_HIST, hist);
   }

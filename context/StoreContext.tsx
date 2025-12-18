@@ -45,6 +45,7 @@ interface StoreContextType {
   requestUpiTopUp: (amount: number, txnId: string) => Promise<void>;
   processWalletRequest: (requestId: string, status: RequestStatus) => Promise<void>;
   adminAdjustWallet: (userId: string, amount: number, type: 'CREDIT' | 'DEBIT', description: string) => Promise<void>;
+  forceCloudSync: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -65,7 +66,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState<{ productId: string; quantity: number }[]>([]);
 
-  // Initial Data Fetch from "DB"
+  // Initial Data Fetch
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
@@ -75,7 +76,6 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
           db.getSettings(), db.getCommissions(), db.getEpins(), db.getWalletRequests(), db.getWalletHistory()
         ]);
 
-        // Fallback for empty DB
         const finalUsers = u.length ? u : [DEFAULT_ADMIN];
         const finalProducts = p.length ? p : INITIAL_PRODUCTS;
         const finalCats = c.length ? c : INITIAL_CATEGORIES;
@@ -91,14 +91,13 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
         setWalletRequests(wr);
         setWalletHistory(wh);
 
-        // Session Restore
         const uid = localStorage.getItem(CURRENT_USER_ID_KEY);
         if (uid) {
           const user = finalUsers.find(x => x.id === uid);
           if (user) setCurrentUser(user);
         }
       } catch (err) {
-        console.error("Failed to fetch data from DB:", err);
+        console.error("Failed to initialize store:", err);
       } finally {
         setIsLoading(false);
       }
@@ -106,7 +105,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
     init();
   }, []);
 
-  // Persistence triggers
+  // Sync state to DB on changes
   useEffect(() => { if (!isLoading) db.saveUsers(users); }, [users, isLoading]);
   useEffect(() => { if (!isLoading) db.saveProducts(products); }, [products, isLoading]);
   useEffect(() => { if (!isLoading) db.saveOrders(orders); }, [orders, isLoading]);
@@ -115,6 +114,29 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   useEffect(() => { if (!isLoading) db.saveEpins(epins); }, [epins, isLoading]);
   useEffect(() => { if (!isLoading) db.saveWalletRequests(walletRequests); }, [walletRequests, isLoading]);
   useEffect(() => { if (!isLoading) db.saveWalletHistory(walletHistory); }, [walletHistory, isLoading]);
+
+  const forceCloudSync = async () => {
+    if (!IS_SUPABASE_CONNECTED) {
+      alert("No Supabase connection detected. Please check your environment variables.");
+      return;
+    }
+    try {
+      await Promise.all([
+        db.saveUsers(users),
+        db.saveProducts(products),
+        db.saveCategories(categories),
+        db.saveOrders(orders),
+        db.saveSettings(settings),
+        db.saveCommissions(commissions),
+        db.saveEpins(epins),
+        db.saveWalletRequests(walletRequests),
+        db.saveWalletHistory(walletHistory)
+      ]);
+      alert("Sync Complete! All local data is now in the cloud.");
+    } catch (err) {
+      alert("Sync Failed: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+  };
 
   const login = async (email: string, pass: string) => {
     const user = users.find(u => u.email === email && (u.password === pass || pass === 'admin'));
@@ -158,13 +180,13 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const resetPassword = async (email: string, newPass: string) => {
     const userIndex = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
-    if (userIndex === -1) return { success: false, message: "User not found with this email." };
+    if (userIndex === -1) return { success: false, message: "User not found." };
     
     const updatedUsers = [...users];
     updatedUsers[userIndex] = { ...updatedUsers[userIndex], password: newPass };
     setUsers(updatedUsers);
     
-    return { success: true, message: "Password updated successfully!" };
+    return { success: true, message: "Password updated!" };
   };
 
   const updateUserProfile = async (userId: string, data: Partial<User>) => {
@@ -222,7 +244,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
     const totalAmount = items.reduce((sum, item) => sum + (item.priceAtPurchase * item.quantity), 0);
     if (currentUser.walletBalance < totalAmount) {
-      alert("Insufficient Wallet Balance!");
+      alert("Insufficient Balance!");
       return;
     }
 
@@ -266,7 +288,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
         setWalletHistory(prev => [...prev, {
           id: crypto.randomUUID(), userId: tempUsers[idx].id,
           type: TransactionType.COMMISSION, amount: amt,
-          description: `Level ${currentLevel} Comm. from ${currentUser.name}`,
+          description: `L${currentLevel} Comm. from ${currentUser.name}`,
           date: new Date().toISOString()
         }]);
       }
@@ -299,7 +321,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
   const redeemEPin = async (code: string) => {
     if (!currentUser) return { success: false, message: "Not logged in" };
     const pin = epins.find(p => p.code === code);
-    if (!pin || pin.isUsed) return { success: false, message: "Invalid or used pin" };
+    if (!pin || pin.isUsed) return { success: false, message: "Invalid pin" };
     
     setEpins(prev => prev.map(p => p.code === code ? { ...p, isUsed: true, usedBy: currentUser.id } : p));
     const nextBal = currentUser.walletBalance + pin.amount;
@@ -357,7 +379,7 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
       login, logout, register, resetPassword, updateUserProfile, deleteUser, updateSettings, 
       addProduct, updateProduct, deleteProduct, addCategory, deleteCategory,
       addToCart, removeFromCart, clearCart, placeOrder, updateOrderStatus,
-      generateEPins, redeemEPin, requestUpiTopUp, processWalletRequest, adminAdjustWallet
+      generateEPins, redeemEPin, requestUpiTopUp, processWalletRequest, adminAdjustWallet, forceCloudSync
     }}>
       {children}
     </StoreContext.Provider>
@@ -366,6 +388,6 @@ export const StoreProvider = ({ children }: PropsWithChildren<{}>) => {
 
 export const useStore = () => {
   const context = useContext(StoreContext);
-  if (!context) throw new Error("useStore must be used within StoreProvider");
+  if (!context) throw new Error("useStore error");
   return context;
 };
