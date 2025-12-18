@@ -5,7 +5,7 @@ import {
   Users, ShoppingBag, Settings, Network, DollarSign, Package, 
   Trash2, Plus, Edit2, CheckCircle, XCircle, Wand2, LogOut, Menu, X,
   Key, Wallet, ArrowDownCircle, ArrowUpCircle, User as UserIcon,
-  Cloud, HardDrive, RefreshCcw
+  Cloud, HardDrive
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateProductDescription } from '../services/geminiService';
@@ -19,24 +19,15 @@ export const AdminPanel = () => {
     categories, addCategory, deleteCategory, orders, updateOrderStatus, users, 
     commissions, currentUser, logout, generateEPins, epins, walletRequests, 
     processWalletRequest, adminAdjustWallet, deleteUser, updateUserProfile,
-    isCloudSyncActive, forceCloudSync
+    isCloudSyncActive
   } = useStore();
   
   const [activeTab, setActiveTab] = useState<'stats' | 'shop' | 'settings' | 'customers' | 'referrals' | 'wallet' | 'profile'>('stats');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleNavClick = (tab: any) => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
-  };
-
-  const handleManualSync = async () => {
-    if(confirm("This will push all current data to Supabase. Continue?")) {
-      setIsSyncing(true);
-      await forceCloudSync();
-      setIsSyncing(false);
-    }
   };
 
   const NavItems = () => (
@@ -85,18 +76,6 @@ export const AdminPanel = () => {
               {isCloudSyncActive ? <Cloud size={12} /> : <HardDrive size={12} />}
               {isCloudSyncActive ? 'Cloud Active' : 'Local Storage'}
             </div>
-
-            {isCloudSyncActive && (
-              <button 
-                onClick={handleManualSync}
-                disabled={isSyncing}
-                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 ml-2 transition-all"
-                title="Force Cloud Update"
-              >
-                <RefreshCcw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                {isSyncing ? 'Syncing...' : 'Sync Cloud'}
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -130,12 +109,12 @@ export const AdminPanel = () => {
         {/* Main Scrollable Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
-            {activeTab === 'stats' && <DashboardStats orders={orders || []} commissions={commissions || []} users={users || []} />}
+            {activeTab === 'stats' && <DashboardStats orders={orders} commissions={commissions} users={users} />}
             {activeTab === 'shop' && (
                <ShopSettings 
-                 products={products || []} 
-                 categories={categories || []} 
-                 orders={orders || []} 
+                 products={products} 
+                 categories={categories} 
+                 orders={orders} 
                  onAddProduct={addProduct} 
                  onUpdateProduct={updateProduct} 
                  onDeleteProduct={deleteProduct} 
@@ -147,18 +126,18 @@ export const AdminPanel = () => {
             {activeTab === 'settings' && <AppSettingsPanel settings={settings} onUpdate={updateSettings} isCloudSyncActive={isCloudSyncActive} />}
             {activeTab === 'customers' && (
                <CustomerList 
-                 users={users || []} 
+                 users={users} 
                  onDelete={deleteUser} 
                  onUpdate={updateUserProfile} 
                  onAdjustWallet={adminAdjustWallet} 
                />
             )}
-            {activeTab === 'referrals' && <ReferralSettingsPanel settings={settings} onUpdate={updateSettings} commissions={commissions || []} users={users || []} rootId={currentUser?.id || ''} />}
+            {activeTab === 'referrals' && <ReferralSettingsPanel settings={settings} onUpdate={updateSettings} commissions={commissions} users={users} rootId={currentUser?.id || ''} />}
             {activeTab === 'wallet' && (
                <WalletSettings 
-                 epins={epins || []} 
+                 epins={epins} 
                  onGenerate={generateEPins} 
-                 requests={walletRequests || []} 
+                 requests={walletRequests} 
                  onProcessRequest={processWalletRequest} 
                />
             )}
@@ -185,15 +164,12 @@ const NavButton = ({ active, onClick, icon, label }: any) => (
 );
 
 const DashboardStats = ({ orders, commissions, users }: any) => {
-  const ords = Array.isArray(orders) ? orders : [];
-  const comms = Array.isArray(commissions) ? commissions : [];
+  const totalRevenue = orders.reduce((sum: number, o: any) => sum + o.totalAmount, 0);
+  const totalCommission = commissions.reduce((sum: number, c: any) => sum + c.amount, 0);
   
-  const totalRevenue = ords.reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0);
-  const totalCommission = comms.reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
-  
-  const salesData = ords.slice(0, 10).map((o: any) => ({
-    name: o.createdAt ? new Date(o.createdAt).toLocaleDateString() : 'N/A',
-    amount: o.totalAmount || 0
+  const salesData = orders.slice(0, 10).map((o: any) => ({
+    name: new Date(o.createdAt).toLocaleDateString(),
+    amount: o.totalAmount
   }));
 
   return (
@@ -201,7 +177,7 @@ const DashboardStats = ({ orders, commissions, users }: any) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Total Revenue" value={`₹${totalRevenue.toFixed(2)}`} color="bg-green-600" />
         <StatCard title="Commissions Paid" value={`₹${totalCommission.toFixed(2)}`} color="bg-indigo-600" />
-        <StatCard title="Total Users" value={Array.isArray(users) ? users.length : 0} color="bg-orange-600" />
+        <StatCard title="Total Users" value={users.length} color="bg-orange-600" />
       </div>
       
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -242,10 +218,6 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
     }
   };
 
-  const prods = Array.isArray(products) ? products : [];
-  const cats = Array.isArray(categories) ? categories : [];
-  const ords = Array.isArray(orders) ? orders : [];
-
   return (
     <div className="space-y-6">
       <div className="flex gap-1 bg-gray-200/50 p-1 rounded-xl w-fit">
@@ -270,7 +242,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
            </div>
            
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {cats.map((c: any) => (
+             {categories.map((c: any) => (
                <div key={c.id} className="flex justify-between items-center p-4 border border-gray-100 rounded-xl hover:bg-gray-50 group">
                  <span className="font-medium text-gray-700">{c.name}</span>
                  <button onClick={() => onDeleteCategory(c.id)} className="text-gray-400 group-hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all"><Trash2 size={18}/></button>
@@ -292,7 +264,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
            {(isAdding || isEditing) && (
              <ProductForm 
                product={isEditing} 
-               categories={cats}
+               categories={categories}
                onSave={(p: any) => {
                  if (isEditing) onUpdateProduct(p);
                  else onAddProduct({ ...p, id: crypto.randomUUID() });
@@ -316,7 +288,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50">
-                   {prods.map((p: any) => (
+                   {products.map((p: any) => (
                      <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors">
                        <td className="p-4 font-semibold flex items-center gap-4 text-gray-800">
                           <img src={p.imageUrl} className="w-12 h-12 rounded-lg object-cover border border-gray-100" alt="" />
@@ -346,7 +318,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
         <div className="space-y-4">
           <h3 className="text-xl font-bold text-gray-800">Order Management</h3>
           <div className="grid gap-4">
-            {ords.map((order: any) => (
+            {orders.map((order: any) => (
               <div key={order.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-indigo-200 transition-all">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -355,7 +327,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
                   </div>
                   <p className="text-sm font-bold text-indigo-600 mb-2">{order.userName}</p>
                   <div className="flex flex-wrap gap-2">
-                    {Array.isArray(order.items) && order.items.map((i:any) => (
+                    {order.items.map((i:any) => (
                       <span key={i.productId} className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded-md uppercase">{i.quantity}x {i.productName}</span>
                     ))}
                   </div>
@@ -388,8 +360,7 @@ const ShopSettings = ({ products, categories, orders, onAddProduct, onUpdateProd
 };
 
 const ProductForm = ({ product, categories, onSave, onCancel }: any) => {
-  const cats = Array.isArray(categories) ? categories : [];
-  const [form, setForm] = useState(product || { name: '', category: cats[0]?.name || '', price: 0, stock: 0, description: '', imageUrl: '' });
+  const [form, setForm] = useState(product || { name: '', category: categories[0]?.name || '', price: 0, stock: 0, description: '', imageUrl: '' });
   const [loadingAi, setLoadingAi] = useState(false);
 
   const handleAiGenerate = async () => {
@@ -422,7 +393,7 @@ const ProductForm = ({ product, categories, onSave, onCancel }: any) => {
         <div className="space-y-1">
           <label className="text-xs font-bold text-gray-500 uppercase ml-1">Category</label>
           <select className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-indigo-500 outline-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-            {cats.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
         <div className="space-y-1">
@@ -501,7 +472,7 @@ const AppSettingsPanel = ({ settings, onUpdate, isCloudSyncActive }: any) => {
             <p className="text-gray-500 text-sm">Fine-tune your platform's core identity and operations.</p>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest ${isCloudSyncActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
-            {isCloudSyncActive ? 'Database: Supabase (Live)' : 'Database: Local (Offline)'}
+            {isCloudSyncActive ? 'Database: Supabase' : 'Database: Local (Offline)'}
           </div>
         </div>
         
@@ -546,6 +517,13 @@ const AppSettingsPanel = ({ settings, onUpdate, isCloudSyncActive }: any) => {
                   </div>
               </div>
           </div>
+
+          {!isCloudSyncActive && (
+            <div className="p-4 bg-orange-50 text-orange-800 rounded-xl border border-orange-200 text-xs">
+              <p className="font-bold mb-1">Note: Offline Mode Active</p>
+              <p>You are currently not connected to Supabase. All settings are being saved to your browser's local storage only.</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
             <div>
@@ -592,13 +570,11 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
       }
   };
 
-  const usrs = Array.isArray(users) ? users : [];
-
   return (
   <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
     <div className="p-6 border-b border-gray-100 flex justify-between items-center">
       <h3 className="text-xl font-bold text-gray-800">User Management</h3>
-      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{usrs.length} Total Users</span>
+      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{users.length} Total Users</span>
     </div>
     
     <div className="overflow-x-auto">
@@ -613,7 +589,7 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
             </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
-            {usrs.map((u: any) => (
+            {users.map((u: any) => (
             <tr key={u.id} className="hover:bg-indigo-50/20 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
@@ -632,7 +608,7 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
                     {u.role}
                   </span>
                 </td>
-                <td className="p-4 font-black text-gray-800">₹{(u.walletBalance || 0).toFixed(2)}</td>
+                <td className="p-4 font-black text-gray-800">₹{u.walletBalance.toFixed(2)}</td>
                 <td className="p-4">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setEditingUser(u)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Profile"><Edit2 size={18}/></button>
@@ -680,7 +656,7 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
                    <div className="p-3 bg-green-100 text-green-700 rounded-2xl"><Wallet size={24}/></div>
                    <h3 className="font-black text-2xl text-gray-900">Wallet Control</h3>
                 </div>
-                <p className="text-sm text-gray-500 mb-8 ml-1">{walletModal.name}'s balance: <span className="font-bold text-indigo-600">₹{(walletModal.walletBalance || 0).toFixed(2)}</span></p>
+                <p className="text-sm text-gray-500 mb-8 ml-1">{walletModal.name}'s balance: <span className="font-bold text-indigo-600">₹{walletModal.walletBalance.toFixed(2)}</span></p>
                 <div className="space-y-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Amount (INR)</label>
@@ -704,7 +680,7 @@ const CustomerList = ({ users, onDelete, onUpdate, onAdjustWallet }: any) => {
 };
 
 const ReferralSettingsPanel = ({ settings, onUpdate, commissions, users, rootId }: any) => {
-  const [levels, setLevels] = useState(settings.referralLevels || []);
+  const [levels, setLevels] = useState(settings.referralLevels);
 
   const handleLevelChange = (lvl: number, val: number) => {
     setLevels(levels.map((l: any) => l.level === lvl ? { ...l, commissionPercentage: val } : l));
@@ -714,9 +690,6 @@ const ReferralSettingsPanel = ({ settings, onUpdate, commissions, users, rootId 
     onUpdate({ ...settings, referralLevels: levels });
     alert("Commission structure updated!");
   };
-
-  const comms = Array.isArray(commissions) ? commissions : [];
-  const usrs = Array.isArray(users) ? users : [];
 
   return (
     <div className="space-y-8">
@@ -751,7 +724,7 @@ const ReferralSettingsPanel = ({ settings, onUpdate, commissions, users, rootId 
             <p className="text-sm text-gray-500">Visual mapping of the entire downline.</p>
           </div>
           <div className="flex-1 overflow-auto">
-            <ReferralTree users={usrs} rootUserId={rootId} />
+            <ReferralTree users={users} rootUserId={rootId} />
           </div>
         </div>
       </div>
@@ -772,16 +745,16 @@ const ReferralSettingsPanel = ({ settings, onUpdate, commissions, users, rootId 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-               {comms.slice().reverse().slice(0, 10).map((c: any) => (
+               {commissions.slice().reverse().slice(0, 10).map((c: any) => (
                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                   <td className="p-4 font-bold text-gray-800">{usrs.find((u:any) => u.id === c.beneficiaryId)?.name || 'Unknown'}</td>
-                   <td className="p-4 text-gray-600">{usrs.find((u:any) => u.id === c.sourceUserId)?.name || 'Unknown'}</td>
+                   <td className="p-4 font-bold text-gray-800">{users.find((u:any) => u.id === c.beneficiaryId)?.name || 'Unknown'}</td>
+                   <td className="p-4 text-gray-600">{users.find((u:any) => u.id === c.sourceUserId)?.name || 'Unknown'}</td>
                    <td className="p-4"><span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded uppercase">L{c.level}</span></td>
-                   <td className="p-4 font-black text-green-600">₹{(c.amount || 0).toFixed(2)}</td>
-                   <td className="p-4 text-[10px] text-gray-400 font-bold uppercase">{c.date ? new Date(c.date).toLocaleString() : 'N/A'}</td>
+                   <td className="p-4 font-black text-green-600">₹{c.amount.toFixed(2)}</td>
+                   <td className="p-4 text-[10px] text-gray-400 font-bold uppercase">{new Date(c.date).toLocaleString()}</td>
                  </tr>
                ))}
-               {comms.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No payouts recorded yet.</td></tr>}
+               {commissions.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No payouts recorded yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -804,9 +777,6 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
             setGenCount('');
         }
     };
-
-    const pins = Array.isArray(epins) ? epins : [];
-    const reqs = Array.isArray(requests) ? requests : [];
 
     return (
         <div className="space-y-8">
@@ -854,7 +824,7 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {pins.slice().reverse().map((pin: any) => (
+                                    {epins.slice().reverse().map((pin: any) => (
                                         <tr key={pin.code} className="hover:bg-gray-50 transition-colors">
                                             <td className="p-4 font-black text-indigo-700 tracking-widest uppercase">{pin.code}</td>
                                             <td className="p-4 font-black text-gray-800">₹{pin.amount}</td>
@@ -866,7 +836,7 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
                                             <td className="p-4 text-[10px] font-bold text-gray-400 uppercase">{pin.expiresAt ? new Date(pin.expiresAt).toLocaleDateString() : 'Perpetual'}</td>
                                         </tr>
                                     ))}
-                                    {pins.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-400 font-medium">Registry is empty.</td></tr>}
+                                    {epins.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-gray-400 font-medium">Registry is empty.</td></tr>}
                                 </tbody>
                             </table>
                         </div>
@@ -890,7 +860,7 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
-                              {reqs.map((req: any) => (
+                              {requests.map((req: any) => (
                                   <tr key={req.id} className="hover:bg-gray-50 transition-colors">
                                       <td className="p-4 font-bold text-gray-800">{req.userName}</td>
                                       <td className="p-4 font-black text-xs text-indigo-600 tracking-tighter">{req.transactionId}</td>
@@ -913,7 +883,7 @@ const WalletSettings = ({ epins, onGenerate, requests, onProcessRequest }: any) 
                                       </td>
                                   </tr>
                               ))}
-                              {reqs.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No pending requests found.</td></tr>}
+                              {requests.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 font-medium">No pending requests found.</td></tr>}
                           </tbody>
                       </table>
                     </div>
